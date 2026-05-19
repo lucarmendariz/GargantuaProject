@@ -1,0 +1,95 @@
+CREATE TABLE product (
+    product_id INT AUTO_INCREMENT PRIMARY KEY,
+    sku VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT DEFAULT NULL,
+    is_active TINYINT(1) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE product_lot (
+    lot_id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+    lot_number VARCHAR(100) UNIQUE NOT NULL,
+    quantity DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
+    measure_unit VARCHAR(20) NOT NULL DEFAULT 'UNITS',
+    expiration_date DATE DEFAULT NULL,
+    supplier_reference VARCHAR(100) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_lot_product FOREIGN KEY (product_id) REFERENCES product (product_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE lot_history (
+    history_id INT AUTO_INCREMENT PRIMARY KEY,
+    lot_id INT NOT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    operator VARCHAR(100) NOT NULL,
+    action_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    quantity_affected DECIMAL(12,4) DEFAULT NULL,
+    ocr_raw_text TEXT DEFAULT NULL,
+    observations TEXT DEFAULT NULL,
+    CONSTRAINT fk_history_lot FOREIGN KEY (lot_id) REFERENCES product_lot (lot_id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+DELIMITER ;;
+CREATE OR REPLACE PROCEDURE `ProductLot_GetCurrentStatus`(IN _lotNumber VARCHAR(100))
+BEGIN
+    IF (SELECT lot_id FROM product_lot WHERE lot_number = _lotNumber) IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El lote no existe.', MYSQL_ERRNO = 101;
+    END IF;
+
+    SELECT p.product_id, p.sku AS product_sku, p.name AS product_name, pl.lot_id, pl.lot_number, pl.quantity AS initial_quantity, pl.measure_unit, pl.expiration_date, lh.action_type AS current_state, lh.action_timestamp AS last_update, lh.operator AS last_operator, lh.ocr_raw_text, lh.observations AS last_observations
+    FROM product_lot pl JOIN product p ON pl.product_id = p.product_id JOIN lot_history lh ON lh.lot_id = pl.lot_id
+    WHERE pl.lot_number = _lotNumber ORDER BY lh.history_id DESC LIMIT 1;
+END ;;
+DELIMITER ;
+
+
+
+USE core;
+
+-- =================================================================
+-- LIMPIEZA DE DATOS PREVIA (Para permitir reejecución limpia)
+-- =================================================================
+SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE lot_history;
+TRUNCATE TABLE product_lot;
+TRUNCATE TABLE product;
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- =================================================================
+-- 1. SEED: PRODUCTOS DE MONCORP
+-- =================================================================
+INSERT INTO product (product_id, sku, name, description, is_active)
+VALUES (1, 'MON-CHE-001', 'Queso Cabrales Selección MonCorp', 'Queso azul artesanal madurado en cueva', 1),
+       (2, 'MON-WIN-002', 'Vino Tinto Reserva MonCorp', 'Vino tinto de barrica, cosecha seleccionada', 1),
+       (3, 'MON-OIL-003', 'Aceite de Oliva Virgen Extra', 'Garrafa de 5 litros de extracción en frío', 1);
+
+-- =================================================================
+-- 2. SEED: LOTES ASOCIADOS (Los objetivos de la cámara OCR)
+-- =================================================================
+INSERT INTO product_lot (lot_id, product_id, lot_number, quantity, measure_unit, expiration_date, supplier_reference)
+VALUES (1, 1, 'LOT-2026-05-19A', 50.0000, 'UNITS', '2026-12-31', 'ALB-7761'),
+       (2, 1, 'LOT-2026-04-10B', 120.0000, 'UNITS', '2026-10-15', 'ALB-7400'),
+       (3, 2, 'LOT-2026-VINO-01', 300.0000, 'BOXES', '2032-01-01', 'ALB-8812');
+
+-- =================================================================
+-- 3. SEED: HISTORIAL CRONOLÓGICO DE ACCIONES
+-- =================================================================
+
+-- Historial para el Lote 1 (El caso feliz que usaremos en los tests)
+INSERT INTO lot_history (lot_id, action_type, operator, action_timestamp, quantity_affected, ocr_raw_text, observations)
+VALUES (1, 'RECEPCIONADO', 'Luca', '2026-05-19 09:00:00', 50.0000, 'OCR_RAW: MON-CHE-001 || LOTE: 05-19A || CAD: 31-12-2026', 'Entrada conforme del camión de reparto'),
+       (1, 'EN_PRODUCCION', 'Alex', '2026-05-19 11:30:00', 50.0000, 'OCR_RAW: MATCH LOTE 05-19A', 'Lote enviado a la mesa de etiquetado final'),
+       (1, 'VENDIDO', 'Luca', '2026-05-19 14:00:00', 10.0000, 'OCR_RAW: LOT-2026-05-19A', 'Venta parcial. Albarán de salida de cliente #4521');
+
+-- Historial para el Lote 2 (Simulando un lote conflictivo/bloqueado)
+INSERT INTO lot_history (lot_id, action_type, operator, action_timestamp, quantity_affected, ocr_raw_text, observations)
+VALUES (2, 'RECEPCIONADO', 'Alex', '2026-04-10 08:15:00', 120.0000, 'OCR_RAW: PROD_001_B_10', 'Recepción de stock de seguridad'),
+       (2, 'BLOQUEADO', 'Calidad_Juan', '2026-04-11 10:00:00', 120.0000, NULL, 'Retirado preventivamente por rotura de cadena de frío en transporte');
+
+-- Historial para el Lote 3 (Simulando stock parado)
+INSERT INTO lot_history (lot_id, action_type, operator, action_timestamp, quantity_affected, ocr_raw_text, observations)
+VALUES (3, 'RECEPCIONADO', 'Juanillo', '2026-05-01 12:00:00', 300.0000, 'OCR_RAW: MON-WIN-002 L:VINO-01', 'Palés ubicados en bodega central');
