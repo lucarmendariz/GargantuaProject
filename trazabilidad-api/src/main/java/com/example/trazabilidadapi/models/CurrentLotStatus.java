@@ -16,11 +16,11 @@ public class CurrentLotStatus {
     private String productName;
     private int lotId;
     private String lotNumber;
-    private BigDecimal initialQuantity;
+    private Integer initialQuantity;
     private String measureUnit;
-    private LocalDate expirationDate;
+    private Integer expirationDate;
     private String currentState;
-    private LocalDateTime lastUpdate;
+    private Integer lastUpdate;
     private String lastOperator;
     private String ocrRawText;
     private String lastObservations;

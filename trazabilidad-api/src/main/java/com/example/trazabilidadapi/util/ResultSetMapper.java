@@ -3,6 +3,7 @@ package com.example.trazabilidadapi.util;
 import com.example.trazabilidadapi.models.*;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 
 public class ResultSetMapper {
 
@@ -13,11 +14,11 @@ public class ResultSetMapper {
                 .productName(rs.getString("product_name"))
                 .lotId(rs.getInt("lot_id"))
                 .lotNumber(rs.getString("lot_number"))
-                .initialQuantity(rs.getBigDecimal("initial_quantity"))
+                .initialQuantity(rs.getInt("initial_quantity"))
                 .measureUnit(rs.getString("measure_unit"))
-                .expirationDate(rs.getDate("expiration_date") != null ? rs.getDate("expiration_date").toLocalDate() : null)
+                .expirationDate(rs.getObject("expiration_date", Integer.class))
                 .currentState(rs.getString("current_state"))
-                .lastUpdate(rs.getTimestamp("last_update") != null ? rs.getTimestamp("last_update").toLocalDateTime() : null)
+                .lastUpdate(rs.getObject("last_update", Integer.class))
                 .lastOperator(rs.getString("last_operator"))
                 .ocrRawText(rs.getString("ocr_raw_text"))
                 .lastObservations(rs.getString("last_observations"))
@@ -41,9 +42,9 @@ public class ResultSetMapper {
                 .lotId(rs.getInt("lot_id"))
                 .productId(rs.getInt("product_id"))
                 .lotNumber(rs.getString("lot_number"))
-                .quantity(rs.getBigDecimal("quantity"))
+                .quantity(rs.getInt("quantity"))
                 .measureUnit(rs.getString("measure_unit"))
-                .expirationDate(rs.getDate("expiration_date") != null ? rs.getDate("expiration_date").toLocalDate() : null)
+                .expirationDate(rs.getInt("expiration_date"))
                 .supplierReference(rs.getString("supplier_reference"))
                 .createdAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null)
                 .updatedAt(rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null)
@@ -81,12 +82,11 @@ public class ResultSetMapper {
                 .productName(rs.getString("product_name"))
                 .lotId(rs.getInt("lot_id"))
                 .lotNumber(rs.getString("lot_number"))
-                .initialQuantity(rs.getBigDecimal("initial_quantity"))
+                .initialQuantity(rs.getInt("initial_quantity"))
                 .measureUnit(rs.getString("measure_unit"))
-                // Usamos Long.class para soportar nulos correctamente en tipos numéricos flotantes/enteros
-                .expirationDate(rs.getObject("expiration_date", Long.class))
+                .expirationDate(rs.getInt("expiration_date"))
                 .currentState(rs.getString("current_state"))
-                .lastUpdate(rs.getTimestamp("last_update"))
+                .lastUpdate(rs.getInt("last_update"))
                 .lastOperator(rs.getString("last_operator"))
                 .ocrRawText(rs.getString("ocr_raw_text"))
                 .lastObservations(rs.getString("last_observations"))

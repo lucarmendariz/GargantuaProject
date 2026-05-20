@@ -30,9 +30,9 @@ public class ProductLotRepository {
 
             stmt.setInt(1, productLot.getProductId());
             stmt.setString(2, productLot.getLotNumber());
-            stmt.setBigDecimal(3, productLot.getQuantity());
+            stmt.setInt(3, productLot.getQuantity());
             stmt.setString(4, productLot.getMeasureUnit());
-            stmt.setObject(5, productLot.getExpirationDate(), Types.BIGINT);
+            stmt.setObject(5, productLot.getExpirationDate(), Types.INTEGER);
             stmt.setString(6, productLot.getSupplierReference());
 
             // Registrar el parámetro OUT en la posición 7
@@ -105,9 +105,9 @@ public class ProductLotRepository {
              CallableStatement stmt = conn.prepareCall(sql)) {
 
             stmt.setInt(1, productLot.getLotId()); // Se asume que el modelo ProductLot cuenta con getLotId()
-            stmt.setBigDecimal(2, productLot.getQuantity());
+            stmt.setInt(2, productLot.getQuantity());
             stmt.setString(3, productLot.getMeasureUnit());
-            stmt.setObject(4, productLot.getExpirationDate(), Types.BIGINT);
+            stmt.setObject(4, productLot.getExpirationDate(), Types.INTEGER);
             stmt.setString(5, productLot.getSupplierReference());
 
             stmt.execute();
