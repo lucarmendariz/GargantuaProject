@@ -292,3 +292,15 @@ BEGIN
 END;;
 
 DELIMITER ;
+
+DELIMITER ;;
+
+-- Buscar un usuario por su username para validar el login
+CREATE OR REPLACE PROCEDURE `AppUser_FindByUsername`(
+    IN _username VARCHAR(50)
+)
+BEGIN
+    SELECT * FROM app_user WHERE username = _username AND is_active = 1;
+END;;
+
+DELIMITER ;

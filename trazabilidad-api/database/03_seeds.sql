@@ -32,3 +32,10 @@ VALUES (2, 'RECEPCIONADO', 'Alex', '2026-04-10 08:15:00', 120.0000, 'OCR_RAW: PR
 -- Historial para el Lote 3 (Stock parado en almacén)
 INSERT INTO lot_history (lot_id, action_type, operator, action_timestamp, quantity_affected, ocr_raw_text, observations)
 VALUES (3, 'RECEPCIONADO', 'Juanillo', '2026-05-01 12:00:00', 300.0000, 'OCR_RAW: MON-WIN-002 L:VINO-01', 'Palés ubicados en bodega central');
+
+-- =================================================================
+-- 4. SEED: USUARIOS DE LA APLICAION
+-- =================================================================
+-- Usuario de prueba: username 'luca', password 'moncorp2026'
+INSERT INTO app_user (username, password_hash, name, role, is_active)
+VALUES ('luca', 'moncorp2026', 'Luca Armendariz', 'ADMIN', 1);

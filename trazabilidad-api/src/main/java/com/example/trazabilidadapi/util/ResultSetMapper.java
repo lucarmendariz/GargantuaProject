@@ -62,4 +62,15 @@ public class ResultSetMapper {
                 .observations(rs.getString("observations"))
                 .build();
     }
+
+    public static AppUser getAppUserFromResultSet(ResultSet rs) throws SQLException {
+        return AppUser.builder()
+                .userId(rs.getInt("user_id"))
+                .username(rs.getString("username"))
+                .passwordHash(rs.getString("password_hash"))
+                .name(rs.getString("name"))
+                .role(rs.getString("role"))
+                .isActive(rs.getBoolean("is_active"))
+                .build();
+    }
 }

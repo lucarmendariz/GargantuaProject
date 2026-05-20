@@ -6,6 +6,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS lot_history;
 DROP TABLE IF EXISTS product_lot;
 DROP TABLE IF EXISTS product;
+DROP TABLE IF EXISTS app_user;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =================================================================
@@ -48,4 +49,15 @@ CREATE TABLE lot_history (
          ocr_raw_text TEXT DEFAULT NULL,
          observations TEXT DEFAULT NULL,
          CONSTRAINT fk_history_lot FOREIGN KEY (lot_id) REFERENCES product_lot (lot_id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- Tabla de Usuarios del Sistema
+CREATE TABLE app_user (
+          user_id INT AUTO_INCREMENT PRIMARY KEY,
+          username VARCHAR(50) UNIQUE NOT NULL,
+          password_hash VARCHAR(255) NOT NULL, -- Guardaremos las contraseñas cifradas
+          name VARCHAR(100) NOT NULL,
+          role VARCHAR(50) NOT NULL DEFAULT 'OPERATOR', -- OPERATOR, ADMIN, QUALITY
+          is_active TINYINT(1) DEFAULT 1 NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
