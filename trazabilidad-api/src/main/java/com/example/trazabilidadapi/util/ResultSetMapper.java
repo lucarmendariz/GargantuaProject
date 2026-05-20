@@ -1,30 +1,65 @@
 package com.example.trazabilidadapi.util;
 
-import com.example.trazabilidadapi.models.CurrentLotStatus;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-
+import com.example.trazabilidadapi.models.*;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-
 public class ResultSetMapper {
 
-    public static CurrentLotStatus getLotCurrentStatusFromResultSet(ResultSet resultSet) throws SQLException {
+    public static CurrentLotStatus getLotCurrentStatusFromResultSet(ResultSet rs) throws SQLException {
         return CurrentLotStatus.builder()
-                .productId(resultSet.getInt("product_id"))
-                .productSku(resultSet.getString("product_sku"))
-                .productName(resultSet.getString("product_name"))
-                .lotId(resultSet.getInt("lot_id"))
-                .lotNumber(resultSet.getString("lot_number"))
-                .initialQuantity(resultSet.getBigDecimal("initial_quantity"))
-                .measureUnit(resultSet.getString("measure_unit"))
-                .expirationDate(resultSet.getDate("expiration_date") != null ? resultSet.getDate("expiration_date").toLocalDate() : null)
-                .currentState(resultSet.getString("current_state"))
-                .lastUpdate(resultSet.getTimestamp("last_update") != null ? resultSet.getTimestamp("last_update").toLocalDateTime() : null)
-                .lastOperator(resultSet.getString("last_operator"))
-                .ocrRawText(resultSet.getString("ocr_raw_text"))
-                .lastObservations(resultSet.getString("last_observations"))
+                .productId(rs.getInt("product_id"))
+                .productSku(rs.getString("product_sku"))
+                .productName(rs.getString("product_name"))
+                .lotId(rs.getInt("lot_id"))
+                .lotNumber(rs.getString("lot_number"))
+                .initialQuantity(rs.getBigDecimal("initial_quantity"))
+                .measureUnit(rs.getString("measure_unit"))
+                .expirationDate(rs.getDate("expiration_date") != null ? rs.getDate("expiration_date").toLocalDate() : null)
+                .currentState(rs.getString("current_state"))
+                .lastUpdate(rs.getTimestamp("last_update") != null ? rs.getTimestamp("last_update").toLocalDateTime() : null)
+                .lastOperator(rs.getString("last_operator"))
+                .ocrRawText(rs.getString("ocr_raw_text"))
+                .lastObservations(rs.getString("last_observations"))
                 .build();
-    }}
+    }
+
+    public static Product getProductFromResultSet(ResultSet rs) throws SQLException {
+        return Product.builder()
+                .productId(rs.getInt("product_id"))
+                .sku(rs.getString("sku"))
+                .name(rs.getString("name"))
+                .description(rs.getString("description"))
+                .isActive(rs.getBoolean("is_active"))
+                .createdAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null)
+                .updatedAt(rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null)
+                .build();
+    }
+
+    public static ProductLot getProductLotFromResultSet(ResultSet rs) throws SQLException {
+        return ProductLot.builder()
+                .lotId(rs.getInt("lot_id"))
+                .productId(rs.getInt("product_id"))
+                .lotNumber(rs.getString("lot_number"))
+                .quantity(rs.getBigDecimal("quantity"))
+                .measureUnit(rs.getString("measure_unit"))
+                .expirationDate(rs.getDate("expiration_date") != null ? rs.getDate("expiration_date").toLocalDate() : null)
+                .supplierReference(rs.getString("supplier_reference"))
+                .createdAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null)
+                .updatedAt(rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null)
+                .build();
+    }
+
+    public static LotHistory getLotHistoryFromResultSet(ResultSet rs) throws SQLException {
+        return LotHistory.builder()
+                .historyId(rs.getInt("history_id"))
+                .lotId(rs.getInt("lot_id"))
+                .actionType(rs.getString("action_type"))
+                .operator(rs.getString("operator"))
+                .actionTimestamp(rs.getTimestamp("action_timestamp").toLocalDateTime())
+                .quantityAffected(rs.getBigDecimal("quantity_affected"))
+                .ocrRawText(rs.getString("ocr_raw_text"))
+                .observations(rs.getString("observations"))
+                .build();
+    }
+}

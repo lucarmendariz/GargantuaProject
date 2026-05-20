@@ -1,8 +1,14 @@
 package com.example.trazabilidadapi.models;
 
+import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+@Builder
+@Data
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@NoArgsConstructor
 public class LotHistory {
     private int historyId;
     private int lotId;
