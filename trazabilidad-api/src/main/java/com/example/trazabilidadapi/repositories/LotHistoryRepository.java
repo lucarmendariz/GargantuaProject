@@ -40,7 +40,7 @@ public class LotHistoryRepository {
         return list;
     }
 
-    public int save(LotHistory history) {
+    public int insertLotHistory(LotHistory history) {
         try {
             Connection conn = Objects.requireNonNull(jdbcTemplate.getDataSource()).getConnection();
             try (CallableStatement stmt = conn.prepareCall("{call LotHistory_Insert(?, ?, ?, ?, ?, ?)}")) {

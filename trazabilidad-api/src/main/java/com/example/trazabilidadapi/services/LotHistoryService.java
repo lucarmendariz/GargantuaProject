@@ -19,6 +19,6 @@ public class LotHistoryService {
     }
 
     public boolean registerOcrScan(LotHistory history) {
-        return repository.save(history) > 0;
+        return repository.insertLotHistory(history) > 0;
     }
 }

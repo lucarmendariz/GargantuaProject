@@ -53,18 +53,21 @@ BEGIN
     SELECT * FROM lot_history WHERE lot_id = _lotId ORDER BY history_id DESC;
 END;;
 
--- 6. Insertar un nuevo movimiento/escaneo en el historial
+-- 6. Insertar un nuevo movimiento/escaneo en el historial (MODIFICADO CON PARÁMETRO OUT)
 CREATE OR REPLACE PROCEDURE `LotHistory_Insert`(
     IN _lotId INT,
     IN _actionType VARCHAR(50),
     IN _operator VARCHAR(100),
     IN _quantityAffected DECIMAL(12,4),
     IN _ocrRawText TEXT,
-    IN _observations TEXT
+    IN _observations TEXT,
+    OUT _historyId INT
 )
 BEGIN
     INSERT INTO lot_history (lot_id, action_type, operator, quantity_affected, ocr_raw_text, observations)
     VALUES (_lotId, _actionType, _operator, _quantityAffected, _ocrRawText, _observations);
+
+    SET _historyId = LAST_INSERT_ID();
 END;;
 
 DELIMITER ;
@@ -74,11 +77,12 @@ DELIMITER ;;
 -- BLOQUE 1: CRUD DE PRODUCTOS (product)
 -- =================================================================
 
--- 1.1 CREATE: Crear un nuevo producto
+-- 1.1 CREATE: Crear un nuevo producto (MODIFICADO CON PARÁMETRO OUT)
 CREATE OR REPLACE PROCEDURE `Product_Create`(
     IN _sku VARCHAR(50),
     IN _name VARCHAR(100),
-    IN _description TEXT
+    IN _description TEXT,
+    OUT _newProductId INT
 )
 BEGIN
     IF (SELECT COUNT(*) FROM product WHERE sku = _sku) > 0 THEN
@@ -88,7 +92,7 @@ BEGIN
     INSERT INTO product (sku, name, description, is_active)
     VALUES (_sku, _name, _description, 1);
 
-    SELECT LAST_INSERT_ID() AS new_product_id;
+    SET _newProductId = LAST_INSERT_ID();
 END;;
 
 -- 1.2 READ (ALL): Listar todo el catálogo para administración
@@ -146,14 +150,15 @@ END;;
 -- BLOQUE 2: CRUD DE LOTES DE PRODUCTO (product_lot)
 -- =================================================================
 
--- 2.1 CREATE: Registrar la entrada de un nuevo lote físico
+-- 2.1 CREATE: Registrar la entrada de un nuevo lote físico (MODIFICADO CON PARÁMETRO OUT)
 CREATE OR REPLACE PROCEDURE `ProductLot_Create`(
     IN _productId INT,
     IN _lotNumber VARCHAR(100),
     IN _quantity DECIMAL(12,4),
     IN _measureUnit VARCHAR(20),
-    IN _expirationDate DATE,
-    IN _supplierReference VARCHAR(100)
+    IN _expirationDate INT(11),
+    IN _supplierReference VARCHAR(100),
+    OUT _newLotId INT
 )
 BEGIN
     -- Validar que el producto maestro exista
@@ -169,7 +174,7 @@ BEGIN
     INSERT INTO product_lot (product_id, lot_number, quantity, measure_unit, expiration_date, supplier_reference)
     VALUES (_productId, _lotNumber, _quantity, _measureUnit, _expirationDate, _supplierReference);
 
-    SELECT LAST_INSERT_ID() AS new_lot_id;
+    SET _newLotId = LAST_INSERT_ID();
 END;;
 
 -- 2.2 READ (ALL): Ver todos los lotes en el sistema
@@ -199,7 +204,7 @@ CREATE OR REPLACE PROCEDURE `ProductLot_Update`(
     IN _lotId INT,
     IN _quantity DECIMAL(12,4),
     IN _measureUnit VARCHAR(20),
-    IN _expirationDate DATE,
+    IN _expirationDate INT(11),
     IN _supplierReference VARCHAR(100)
 )
 BEGIN
@@ -232,14 +237,15 @@ END;;
 -- BLOQUE 3: HISTORIAL Y CONTROL DE TRAZABILIDAD (OCR / AUDITORÍA)
 -- =================================================================
 
--- 3.1 CREATE: Insertar un nuevo evento/movimiento detectado por el OCR
+-- 3.1 CREATE: Insertar un nuevo evento/movimiento detectado por el OCR (MODIFICADO CON PARÁMETRO OUT)
 CREATE OR REPLACE PROCEDURE `LotHistory_Insert`(
     IN _lotId INT,
     IN _actionType VARCHAR(50),
     IN _operator VARCHAR(100),
     IN _quantityAffected DECIMAL(12,4),
     IN _ocrRawText TEXT,
-    IN _observations TEXT
+    IN _observations TEXT,
+    OUT _historyId INT
 )
 BEGIN
     IF (SELECT COUNT(*) FROM product_lot WHERE lot_id = _lotId) = 0 THEN
@@ -248,6 +254,8 @@ BEGIN
 
     INSERT INTO lot_history (lot_id, action_type, operator, quantity_affected, ocr_raw_text, observations)
     VALUES (_lotId, _actionType, _operator, _quantityAffected, _ocrRawText, _observations);
+
+    SET _historyId = LAST_INSERT_ID();
 END;;
 
 -- 3.2 READ (BY LOT): Consultar toda la línea de tiempo de un lote (desde su origen)
@@ -259,12 +267,10 @@ BEGIN
 END;;
 
 -- 3.3 TRACEABILITY ENGINE: El motor principal del OCR
--- Une los tres modelos en la estructura DTO comprimida que lee la cámara
 CREATE OR REPLACE PROCEDURE `ProductLot_GetCurrentStatus`(
     IN _lotNumber VARCHAR(100)
 )
 BEGIN
-    -- Comprobar si el lote existe antes de realizar los cruces de tablas
     IF (SELECT lot_id FROM product_lot WHERE lot_number = _lotNumber) IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El número de lote escaneado no existe en el sistema.', MYSQL_ERRNO = 101;
     END IF;

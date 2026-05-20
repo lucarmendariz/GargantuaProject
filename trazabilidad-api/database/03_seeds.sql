@@ -10,9 +10,9 @@ VALUES (1, 'MON-CHE-001', 'Queso Cabrales Selección MonCorp', 'Queso azul artes
 -- 2. SEED: LOTES ASOCIADOS (Los objetivos de las pruebas de la cámara)
 -- =================================================================
 INSERT INTO product_lot (lot_id, product_id, lot_number, quantity, measure_unit, expiration_date, supplier_reference)
-VALUES (1, 1, 'LOT-2026-05-19A', 50.0000, 'UNITS', '2026-12-31', 'ALB-7761'),
-       (2, 1, 'LOT-2026-04-10B', 120.0000, 'UNITS', '2026-10-15', 'ALB-7400'),
-       (3, 2, 'LOT-2026-VINO-01', 300.0000, 'BOXES', '2032-01-01', 'ALB-8812');
+VALUES (1, 1, 'LOT-2026-05-19A', 50.0000, 'UNITS', 1779282053, 'ALB-7761'),
+       (2, 1, 'LOT-2026-04-10B', 120.0000, 'UNITS', 1779282053, 'ALB-7400'),
+       (3, 2, 'LOT-2026-VINO-01', 300.0000, 'BOXES', 1779282053, 'ALB-8812');
 
 -- =================================================================
 -- 3. SEED: HISTORIAL CRONOLÓGICO DE ACCIONES

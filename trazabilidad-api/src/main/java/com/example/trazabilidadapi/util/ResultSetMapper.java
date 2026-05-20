@@ -73,4 +73,23 @@ public class ResultSetMapper {
                 .isActive(rs.getBoolean("is_active"))
                 .build();
     }
+
+    public static CurrentLotStatus getCurrentLotStatusFromResultSet(ResultSet rs) throws SQLException {
+        return CurrentLotStatus.builder()
+                .productId(rs.getInt("product_id"))
+                .productSku(rs.getString("product_sku"))
+                .productName(rs.getString("product_name"))
+                .lotId(rs.getInt("lot_id"))
+                .lotNumber(rs.getString("lot_number"))
+                .initialQuantity(rs.getBigDecimal("initial_quantity"))
+                .measureUnit(rs.getString("measure_unit"))
+                // Usamos Long.class para soportar nulos correctamente en tipos numéricos flotantes/enteros
+                .expirationDate(rs.getObject("expiration_date", Long.class))
+                .currentState(rs.getString("current_state"))
+                .lastUpdate(rs.getTimestamp("last_update"))
+                .lastOperator(rs.getString("last_operator"))
+                .ocrRawText(rs.getString("ocr_raw_text"))
+                .lastObservations(rs.getString("last_observations"))
+                .build();
+    }
 }

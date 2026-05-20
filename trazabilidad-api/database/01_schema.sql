@@ -31,7 +31,7 @@ CREATE TABLE product_lot (
          lot_number VARCHAR(100) UNIQUE NOT NULL,
          quantity DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
          measure_unit VARCHAR(20) NOT NULL DEFAULT 'UNITS',
-         expiration_date DATE DEFAULT NULL,
+         expiration_date bigint(20) DEFAULT NULL,
          supplier_reference VARCHAR(100) DEFAULT NULL,
          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
