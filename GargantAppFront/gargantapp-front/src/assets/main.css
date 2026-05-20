@@ -1,0 +1,106 @@
+@import './base.css';
+
+#app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-weight: normal;
+}
+
+a,
+.green {
+  text-decoration: none;
+  color: hsla(160, 100%, 37%, 1);
+  transition: 0.4s;
+  padding: 3px;
+}
+
+@media (hover: hover) {
+  a:hover {
+    background-color: hsla(160, 100%, 37%, 0.2);
+  }
+}
+
+@media (min-width: 1024px) {
+  body {
+    display: flex;
+    place-items: center;
+  }
+
+  #app {
+    display: grid;
+    padding: 0 2rem;
+  }
+
+/* =================================================================
+   SISTEMA DE DISEÑO: GARGANTÚA TORTILLAS
+   ================================================================= */
+:root {
+  --gargantua-gold: #f5af19;
+  --gargantua-orange: #e67e22;
+  --gargantua-cream: #fffbf2;
+  --gargantua-white: #ffffff;
+  --gargantua-dark: #3e2712;
+  --gargantua-gray: #7f8c8d;
+  --gargantua-border: #f0e3cc;
+  --gargantua-success: #27ae60;
+  --gargantua-danger: #c0392b;
+  --radius-lg: 16px; /* Bordes más redondeados para la card principal */
+  --radius-md: 8px;
+  --transition: all 0.3s ease;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--gargantua-cream);
+  /* LOGO EN EL FONDO: Marca de agua centrada y fija */
+  background-image: url('../imgs/logo_Gargantua.png');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-attachment: fixed;
+  background-size: 300px; /* Tamaño sutil */
+  background-blend-mode: overlay;
+  color: var(--gargantua-dark);
+}
+
+/* CONTENEDOR MAESTRO: Centra la Card vertical y horizontalmente */
+.app-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px; /* Espacio para que no toque los bordes en móvil */
+  box-sizing: border-box;
+}
+
+/* LA TARJETA PRINCIPAL (The Card) */
+.main-card {
+  background: rgba(255, 255, 255, 0.95); /* Un pelín transparente para ver el fondo */
+  backdrop-filter: blur(5px); /* Efecto cristal moderno */
+  width: 100%;
+  max-width: 1000px; /* Ancho máximo en ordenador */
+  min-height: 600px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 15px 35px rgba(62, 39, 18, 0.15);
+  border: 1px solid var(--gargantua-white);
+  overflow: hidden; /* Para que el contenido no se salga de los bordes redondeados */
+  display: flex;
+  flex-direction: column;
+}
+
+/* RESPONSIVIDAD (Móvil) */
+@media (max-width: 600px) {
+  .app-wrapper {
+    padding: 10px; /* Menos margen en móviles */
+    align-items: flex-start; /* En móvil mejor que empiece arriba */
+  }
+  
+  .main-card {
+    min-height: auto;
+    border-radius: var(--radius-md);
+  }
+}
+
+}
