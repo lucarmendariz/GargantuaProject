@@ -1,11 +1,15 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue'; // Importamos computed
 import { useRouter } from 'vue-router';
 import apiClient from '../api';
 
 const products = ref([]);
 const loading = ref(true);
 const router = useRouter();
+const lots = ref([]);
+
+// --- ESTADO DE BÚSQUEDA ---
+const searchQuery = ref('');
 
 // --- ESTADO DEL FORMULARIO: NUEVO PRODUCTO ---
 const prodSku = ref('');
@@ -27,7 +31,6 @@ const lotError = ref('');
 // Función central para cargar los productos activos
 const loadProducts = async () => {
   try {
-    // Llama al endpoint que ejecuta tu procedimiento Product_FindAll
     products.value = await apiClient.get('/productos');
   } catch (error) {
     console.error("Error al cargar el inventario", error);
@@ -36,8 +39,38 @@ const loadProducts = async () => {
   }
 };
 
+const loadProductLots = async () => {
+  try {
+    lots.value = await apiClient.get('/lotes');
+  } catch (error) {
+    console.error("Error al cargar los lotes", error);
+  } finally {
+    loading.value = false;
+  }
+};
+
 onMounted(() => {
   loadProducts();
+  loadProductLots();
+});
+
+// Función auxiliar para obtener los lotes de un producto específico
+const getProductLots = (productId) => {
+  return lots.value.filter(lot => lot.productId === productId);
+};
+
+// Propiedad computada para filtrar el catálogo en tiempo real
+const filteredProducts = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim();
+  if (!query) return products.value;
+
+  return products.value.filter(prod => {
+    return (
+      prod.sku?.toLowerCase().includes(query) ||
+      prod.name?.toLowerCase().includes(query) ||
+      prod.description?.toLowerCase().includes(query)
+    );
+  });
 });
 
 // Registrar un producto maestro nuevo
@@ -46,7 +79,6 @@ const handleCreateProduct = async () => {
     prodSuccess.value = '';
     prodError.value = '';
 
-    // Llamada POST a tu controlador que ejecuta Product_Create
     await apiClient.post('/productos', {
       sku: prodSku.value,
       name: prodName.value,
@@ -55,7 +87,6 @@ const handleCreateProduct = async () => {
 
     prodSuccess.value = '🟢 Producto maestro añadido al catálogo.';
     
-    // Limpiamos formulario y refrescamos la tabla y el desplegable automáticamente
     prodSku.value = ''; prodName.value = ''; prodDesc.value = '';
     await loadProducts();
   } catch (error) {
@@ -69,13 +100,12 @@ const handleCreateLot = async () => {
     lotSuccess.value = '';
     lotError.value = '';
 
-    // Llamada POST a tu controlador que ejecuta ProductLot_Create
     await apiClient.post('/lotes', {
       productId: parseInt(lotProductId.value),
       lotNumber: lotNumber.value,
       quantity: parseFloat(lotQuantity.value),
       measureUnit: lotMeasureUnit.value,
-      expirationDate: lotExpirationDate.value || null,
+      expirationDate: lotExpirationDate.value ? new Date(lotExpirationDate.value).getTime() : null,
       supplierReference: lotSupplierReference.value
     });
 
@@ -84,6 +114,9 @@ const handleCreateLot = async () => {
     // Limpiamos el formulario de lotes
     lotProductId.value = ''; lotNumber.value = ''; lotQuantity.value = '';
     lotExpirationDate.value = ''; lotSupplierReference.value = '';
+    
+    // Refrescamos los lotes para que aparezcan inmediatamente en la tabla
+    await loadProductLots();
   } catch (error) {
     lotError.value = '❌ Error al crear el lote. Verifica que el código de lote sea único.';
   }
@@ -170,6 +203,15 @@ const handleCreateLot = async () => {
 
       <hr class="section-divider" />
 
+      <div class="search-box">
+        <input 
+          v-model="searchQuery" 
+          type="text" 
+          placeholder="🔍 Buscar por SKU, nombre del artículo o descripción técnica..." 
+          class="search-input"
+        />
+      </div>
+
       <h3 class="section-title">📋 Catálogo Actual de Artículos Activos</h3>
       <div v-if="loading" class="loader">Consultando base de datos de planta...</div>
       
@@ -181,16 +223,35 @@ const handleCreateLot = async () => {
               <th>Código SKU</th>
               <th>Nombre del Artículo</th>
               <th>Descripción Técnica</th>
+              <th>Lotes Físicos Asociados</th>
               <th>Estado</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="prod in products" :key="prod.productId">
+            <tr v-for="prod in filteredProducts" :key="prod.productId">
               <td><code>#{{ prod.productId }}</code></td>
               <td><span class="sku-tag">{{ prod.sku }}</span></td>
               <td><strong>{{ prod.name }}</strong></td>
               <td>{{ prod.description || 'Sin descripción técnica registrada' }}</td>
+              
+              <td>
+                <div v-if="getProductLots(prod.productId).length > 0" class="lots-container">
+                  <span 
+                    v-for="lot in getProductLots(prod.productId)" 
+                    :key="lot.lotNumber" 
+                    class="lot-pill"
+                    :title="`Expiración: ${lot.expirationDate ? new Date(lot.expirationDate).toLocaleDateString() : 'N/A'}`"
+                  >
+                    <strong>{{ lot.lotNumber }}</strong>: {{ lot.quantity }} {{ lot.measureUnit }}
+                  </span>
+                </div>
+                <span v-else class="no-lots">Sin lotes activos</span>
+              </td>
+
               <td><span class="badge-active">Activo</span></td>
+            </tr>
+            <tr v-if="filteredProducts.length === 0">
+              <td colspan="6" class="text-center">No se encontraron productos que coincidan con la búsqueda.</td>
             </tr>
           </tbody>
         </table>
@@ -213,7 +274,7 @@ const handleCreateLot = async () => {
 
 .card-body { padding: 25px; flex-grow: 1; display: flex; flex-direction: column; gap: 20px; }
 
-/* CONTENEDOR DE FORMULARIOS: Rejilla flexible dual */
+/* CONTENEDOR DE FORMULARIOS */
 .forms-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -257,7 +318,23 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 .section-divider { border: 0; border-top: 2px solid var(--gargantua-border); margin: 10px 0; }
 .section-title { margin: 0; color: var(--gargantua-dark); }
 
-/* TABLA DE ARTÍCULOS */
+/* BARRA DE BÚSQUEDA */
+.search-box {
+  width: 100%;
+}
+.search-input {
+  background: var(--gargantua-white);
+  border: 2px solid var(--gargantua-border);
+  padding: 12px 15px;
+  font-size: 1rem;
+  border-radius: var(--radius-md);
+}
+.search-input:focus {
+  border-color: var(--gargantua-orange);
+  background: var(--gargantua-cream);
+}
+
+/* TABLA DE ARTÍCULOS Y ESTILOS DE LOTES */
 .loader { text-align: center; padding: 30px; font-weight: bold; color: var(--gargantua-orange); }
 .table-responsive { width: 100%; overflow-x: auto; background: var(--gargantua-white); border-radius: var(--radius-md); border: 1px solid var(--gargantua-border); }
 .data-table { width: 100%; border-collapse: collapse; }
@@ -267,7 +344,35 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 .sku-tag { background: var(--gargantua-cream); padding: 3px 6px; border-radius: 4px; border: 1px dashed var(--gargantua-orange); font-family: monospace; font-weight: bold; color: var(--gargantua-orange); }
 .badge-active { background: var(--gargantua-success); color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
 
-/* RESPONSIVIDAD (TABLERO MÓVIL) */
+/* Contenedores de etiquetas de lotes */
+.lots-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 300px;
+}
+.lot-pill {
+  background: var(--gargantua-cream);
+  border: 1px solid var(--gargantua-border);
+  color: var(--gargantua-dark);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: monospace;
+  white-space: nowrap;
+}
+.no-lots {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+.text-center {
+  text-align: center;
+  color: #64748b;
+  padding: 20px !important;
+}
+
+/* RESPONSIVIDAD */
 @media (max-width: 850px) {
   .forms-container { grid-template-columns: 1fr; gap: 20px; }
   .form-grid-inputs { grid-template-columns: 1fr; }

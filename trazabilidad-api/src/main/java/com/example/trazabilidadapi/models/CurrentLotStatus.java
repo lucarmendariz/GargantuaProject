@@ -18,9 +18,9 @@ public class CurrentLotStatus {
     private String lotNumber;
     private Integer initialQuantity;
     private String measureUnit;
-    private Integer expirationDate;
+    private Long expirationDate;
     private String currentState;
-    private Integer lastUpdate;
+    private Long lastUpdate;
     private String lastOperator;
     private String ocrRawText;
     private String lastObservations;

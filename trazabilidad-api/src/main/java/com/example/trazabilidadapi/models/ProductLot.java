@@ -16,7 +16,7 @@ public class ProductLot {
     private String lotNumber;
     private Integer quantity;
     private String measureUnit;
-    private Integer expirationDate;
+    private Long expirationDate;
     private String supplierReference;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
