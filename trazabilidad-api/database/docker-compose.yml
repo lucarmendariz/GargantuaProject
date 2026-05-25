@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:11.4
+    container_name: trazabilidad_db
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: traceability_lean
+      MARIADB_USER: trazabilidad_app
+      MARIADB_PASSWORD: MonCorpPass2026!
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:

@@ -1,41 +1,51 @@
 #!/bin/bash
 
-# =================================================================
-# CONFIGURACIÓN SEGURA: USUARIO RESTRINGIDO DE LA APP
-# =================================================================
+set -e
+
+# Configuración única unificada
 DB_USER="trazabilidad_app"
-DB_PASS="MonCorpPass2026!"  # La clave que definimos en el paso 00
+DB_PASS="MonCorpPass2026!"
 DB_NAME="traceability_lean"
-DB_HOST="localhost"
-DB_PORT="3306"
-
-cd "$(dirname "$0")"
 
 echo "================================================="
-echo "🔄 ACTUALIZADOR DE BASE DE DATOS (MODO APLICACIÓN)"
+echo "🧨 SCRIPT 2: RESET COMPLETO + LIMPIEZA DE DATOS"
 echo "================================================="
 
-# Validar que existan los 3 archivos de trabajo diario
-if [ ! -f "01_schema.sql" ] || [ ! -f "02_procedures.sql" ] || [ ! -f "03_seeds.sql" ]; then
-    echo "❌ Error: Falta alguno de los archivos SQL (01, 02 o 03) en esta carpeta."
-    exit 1
-fi
+# 1. Parar contenedor y BORRAR el volumen de datos (Evita duplicados)
+echo "🧹 Eliminando contenedor y base de datos antigua..."
+docker compose down -v
 
-# Comando base usando el usuario de la app
-DB_CMD="mariadb -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASS"
+# 2. Levantar Docker desde cero (Limpio de fábrica)
+echo "🐳 Creando contenedor MariaDB nuevo..."
+docker compose up -d
 
-echo "🏗️  [1/3] Limpiando y recreando tablas..."
-$DB_CMD $DB_NAME < 01_schema.sql
-if [ $? -ne 0 ]; then echo "❌ Error en 01_schema.sql"; exit 1; fi
+# 3. Esperar a MariaDB (Entramos como root/root que viene por defecto)
+echo "⏳ Esperando a que MariaDB inicie sus servicios..."
+until docker exec trazabilidad_db mariadb -uroot -proot -e "SELECT 1" >/dev/null 2>&1
+do
+  sleep 2
+done
 
-echo "⚙️  [2/3] Actualizando procedimientos almacenados..."
-$DB_CMD $DB_NAME < 02_procedures.sql
-if [ $? -ne 0 ]; then echo "❌ Error en 02_procedures.sql"; exit 1; fi
+echo "✅ MariaDB lista para recibir scripts"
 
-echo "🌱 [3/3] Sincronizando datos de prueba (Seeds)..."
-$DB_CMD $DB_NAME < 03_seeds.sql
-if [ $? -ne 0 ]; then echo "❌ Error en 03_seeds.sql"; exit 1; fi
+# 4. COMANDO MAESTRO (ROOT) - Para crear el entorno e inicializar
+ROOT_CMD="docker exec -i trazabilidad_db mariadb -uroot -proot"
+
+echo "🔐 [ROOT] Creando usuario '$DB_USER' y base de datos '$DB_NAME'..."
+$ROOT_CMD < 00_init_user_db.sql
+
+# 5. COMANDO DE APLICACIÓN - Para rellenar las tablas sin duplicados
+APP_CMD="docker exec -i trazabilidad_db mariadb -u$DB_USER -p$DB_PASS $DB_NAME"
+
+echo "🏗️ [APP] Ejecutando estructura del esquema (01_schema.sql)..."
+$APP_CMD < 01_schema.sql
+
+echo "⚙️ [APP] Cargando procedimientos almacenados (02_procedures.sql)..."
+$APP_CMD < 02_procedures.sql
+
+echo "🌱 [APP] Insertando semillas limpias (03_seeds.sql)..."
+$APP_CMD < 03_seeds.sql
 
 echo "================================================="
-echo "🚀 Sincronización completada de forma segura."
+echo "🚀 TODO LISTO: BASE DE DATOS TOTALMENTE RECREADA"
 echo "================================================="

@@ -31,7 +31,7 @@ VALUES (2, 'RECEPCIONADO', 'Alex', '2026-04-10 08:15:00', 120.0000, 'OCR_RAW: PR
 
 -- Historial para el Lote 3 (Stock parado en almacén)
 INSERT INTO lot_history (lot_id, action_type, operator, action_timestamp, quantity_affected, ocr_raw_text, observations)
-VALUES (3, 'RECEPCIONADO', 'Juanillo', '2026-05-01 12:00:00', 300.0000, 'OCR_RAW: MON-WIN-002 L:VINO-01', 'Palés ubicados en bodega central');
+VALUES (3, 'RECEPCIONADOOO', 'Juanillo', '2026-05-01 12:00:00', 300.0000, 'OCR_RAW: MON-WIN-002 L:VINO-01', 'Palés ubicados en bodega central');
 
 -- =================================================================
 -- 4. SEED: USUARIOS DE LA APLICAION
