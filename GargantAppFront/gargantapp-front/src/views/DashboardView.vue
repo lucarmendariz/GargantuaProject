@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import apiClient from '../api';
 
@@ -9,38 +9,108 @@ const lotData = ref(null);
 const errorMsg = ref('');
 const router = useRouter();
 
-// Variables para el calendario dinámico
-const currentDayName = ref('');
-const currentDayNumber = ref('');
-const currentMonthYear = ref('');
+// --- NUEVO ESTADO PARA EL CALENDARIO INTERACTIVO ---
+const currentDate = ref(new Date());
+const selectedDate = ref(new Date());
+const weekDays = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
+const months = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
 
 onMounted(() => {
-  // 1. Verificar sesión
+  // Verificar sesión
   const savedUser = localStorage.getItem('user');
   if (!savedUser) {
     router.push('/');
   } else {
     user.value = JSON.parse(savedUser);
   }
-
-  // 2. Lógica del calendario nativo
-  const hoy = new Date();
-
-  // Extraemos el día de la semana (ej: Miércoles) y capitalizamos la primera letra
-  const weekday = hoy.toLocaleDateString('es-ES', { weekday: 'long' });
-  currentDayName.value = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-
-  // Número del día (ej: 20)
-  currentDayNumber.value = hoy.getDate();
-
-  // Mes y Año (ej: Mayo, 2026)
-  const monthYear = hoy.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-  currentMonthYear.value = monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
 });
 
-// Funciones de navegación para la botonera
+// --- LÓGICA DEL MOTOR DEL CALENDARIO ---
+const currentYear = computed(() => currentDate.value.getFullYear());
+const currentMonthName = computed(() => months[currentDate.value.getMonth()]);
+
+// Genera la matriz de días que se pintará en el grid del calendario
+const calendarDays = computed(() => {
+  const year = currentDate.value.getFullYear();
+  const month = currentDate.value.getMonth();
+
+  // Primer día del mes actual y cuántos días tiene
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+
+  // Días del mes anterior (para rellenar los huecos iniciales de la cuadrícula)
+  const prevTotalDays = new Date(year, month, 0).getDate();
+
+  const daysArray = [];
+
+  // Huecos del mes anterior
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    daysArray.push({
+      day: prevTotalDays - i,
+      isCurrentMonth: false,
+      date: new Date(year, month - 1, prevTotalDays - i)
+    });
+  }
+
+  // Días del mes actual
+  for (let i = 1; i <= totalDays; i++) {
+    daysArray.push({
+      day: i,
+      isCurrentMonth: true,
+      date: new Date(year, month, i)
+    });
+  }
+
+  // Huecos del mes siguiente para completar la última semana completa si es necesario
+  const remainingCells = 42 - daysArray.length; // Estándar de 6 filas (7x6 = 42)
+  for (let i = 1; i <= remainingCells; i++) {
+    daysArray.push({
+      day: i,
+      isCurrentMonth: false,
+      date: new Date(year, month + 1, i)
+    });
+  }
+
+  return daysArray;
+});
+
+// Navegación del calendario
+const prevMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentDate.value.getMonth() - 1, 1);
+};
+
+const nextMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentDate.value.getMonth() + 1, 1);
+};
+
+const selectDay = (dayObj) => {
+  selectedDate.value = dayObj.date;
+  // Si seleccionas un día del mes anterior o siguiente, movemos el calendario a ese mes
+  if (!dayObj.isCurrentMonth) {
+    currentDate.value = new Date(dayObj.date.getFullYear(), dayObj.date.getMonth(), 1);
+  }
+};
+
+// Comprobar si un día de la cuadrícula es "Hoy"
+const isToday = (date) => {
+  const today = new Date();
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear();
+};
+
+// Comprobar si un día es el seleccionado por el operario
+const isSelected = (date) => {
+  return date.getDate() === selectedDate.value.getDate() &&
+         date.getMonth() === selectedDate.value.getMonth() &&
+         date.getFullYear() === selectedDate.value.getFullYear();
+};
+
+// --- RESTO DE FUNCIONES ---
 const navigateTo = (path) => {
-  // De momento te redirigirá a estas rutas. Cuando creemos las vistas, el router las pillará automáticamente.
   router.push(path);
 };
 
@@ -77,11 +147,31 @@ const logout = () => {
 
       <section class="control-panel">
 
-        <div class="calendar-widget">
-          <div class="calendar-header">{{ currentDayName }}</div>
-          <div class="calendar-body">
-            <span class="day-number">{{ currentDayNumber }}</span>
-            <span class="month-year">{{ currentMonthYear }}</span>
+        <div class="full-calendar-widget">
+          <div class="cal-nav">
+            <button @click="prevMonth" class="cal-nav-btn">◀</button>
+            <span class="cal-title"><strong>{{ currentMonthName }}</strong> {{ currentYear }}</span>
+            <button @click="nextMonth" class="cal-nav-btn">▶</button>
+          </div>
+          
+          <div class="cal-weekdays">
+            <span v-for="day in weekDays" :key="day" class="weekday-cell">{{ day }}</span>
+          </div>
+          
+          <div class="cal-days-grid">
+            <button 
+              v-for="(dayObj, idx) in calendarDays" 
+              :key="idx"
+              @click="selectDay(dayObj)"
+              class="day-cell"
+              :class="{
+                'outside-month': !dayObj.isCurrentMonth,
+                'today-cell': isToday(dayObj.date),
+                'selected-cell': isSelected(dayObj.date)
+              }"
+            >
+              {{ dayObj.day }}
+            </button>
           </div>
         </div>
 
@@ -212,57 +302,101 @@ header {
   gap: 25px;
 }
 
-/* PANEL SUPERIOR: Organización en fila/grid */
+/* PANEL SUPERIOR */
 .control-panel {
   display: flex;
   gap: 20px;
   align-items: stretch;
 }
 
-/* WIDGET CALENDARIO TRADICIONAL */
-.calendar-widget {
+/* 🎨 NUEVOS ESTILOS PARA EL CALENDARIO COMPLETO MATRICIAL */
+.full-calendar-widget {
   background: var(--gargantua-white);
   border: 2px solid var(--gargantua-border);
   border-radius: var(--radius-md);
-  width: 150px;
+  width: 280px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  text-align: center;
+  padding: 12px;
   box-shadow: 0 4px 10px rgba(62, 39, 18, 0.05);
   flex-shrink: 0;
+  user-select: none;
 }
 
-.calendar-header {
-  background: var(--gargantua-orange);
-  color: var(--gargantua-white);
-  padding: 6px;
-  font-weight: bold;
-  font-size: 0.9rem;
-  letter-spacing: 0.5px;
-}
-
-.calendar-body {
-  background: var(--gargantua-white);
-  padding: 10px;
+.cal-nav {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  flex-grow: 1;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
-.day-number {
-  font-size: 2.2rem;
-  font-weight: 900;
-  color: var(--gargantua-dark);
-  line-height: 1;
-  margin-bottom: 2px;
-}
-
-.month-year {
-  font-size: 0.75rem;
-  color: var(--gargantua-gray);
+.cal-nav-btn {
+  background: var(--gargantua-cream);
+  border: 1px solid var(--gargantua-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 0.8rem;
   font-weight: bold;
+  transition: var(--transition);
+}
+
+.cal-nav-btn:hover {
+  background: var(--gargantua-gold);
+}
+
+.cal-title {
+  color: var(--gargantua-dark);
+  font-size: 0.95rem;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-weight: bold;
+  font-size: 0.75rem;
+  color: var(--gargantua-orange);
+  margin-bottom: 6px;
+}
+
+.cal-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.day-cell {
+  background: var(--gargantua-cream);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 0;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: var(--gargantua-dark);
+  cursor: pointer;
+  text-align: center;
+  transition: var(--transition);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.day-cell:hover {
+  background: var(--gargantua-gold);
+}
+
+.outside-month {
+  color: #b9bec5;
+  background: transparent;
+}
+
+.today-cell {
+  border: 2px solid var(--gargantua-orange) !important;
+}
+
+.selected-cell {
+  background: var(--gargantua-dark) !important;
+  color: var(--gargantua-gold) !important;
 }
 
 /* BOTONERA DE OPERACIONES */
@@ -300,7 +434,6 @@ header {
   text-align: center;
 }
 
-/* Efectos Hover personalizados para la fábrica */
 .menu-btn:hover {
   transform: translateY(-3px);
   box-shadow: 0 6px 12px rgba(230, 126, 34, 0.12);
@@ -418,7 +551,7 @@ code {
   border: 1px solid var(--gargantua-border);
 }
 
-/* RESPONSIVIDAD TOTAL (MÓVIL) */
+/* RESPONSIVIDAD TOTAL */
 @media (max-width: 768px) {
   header {
     flex-direction: column;
@@ -432,9 +565,9 @@ code {
     align-items: center;
   }
 
-  .calendar-widget {
+  .full-calendar-widget {
     width: 100%;
-    max-width: 220px;
+    max-width: 320px;
   }
 
   .operations-menu {
