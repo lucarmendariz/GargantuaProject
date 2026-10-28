@@ -4,6 +4,113 @@
 
 ![Estado](https://img.shields.io/badge/estado-en%20desarrollo-orange)
 
+# Gargantua
+
+[Descripción breve del proyecto: qué hace la aplicación y para quién.]
+
+Este repositorio contiene el backend y el frontend en el mismo lugar, pero **se desarrollan por separado**: cada parte tiene su carpeta, su entorno de desarrollo y su forma de arrancar.
+
+## Estructura del repositorio
+
+```
+GargantuaProject/
+├── trazabilidad-api/               Backend (API REST)
+│   └── database/                   Scripts SQL y update_db.sh
+└── GargantAppFront/
+    └── gargantapp-front/           Frontend (Vue)
+```
+
+| Parte | Carpeta | Tecnología | IDE |
+|-------|---------|------------|-----|
+| Backend | `trazabilidad-api` | Java 17, Spring Boot 3.3.5, Gradle, MariaDB (JDBC) | IntelliJ IDEA |
+| Frontend | `GargantAppFront/gargantapp-front` | Vue | Visual Studio Code |
+
+## Requisitos
+
+- **Git**
+- **JDK 17**
+- **Node.js LTS** (incluye npm)
+- **MariaDB** (instalada en local o con Docker)
+- **IntelliJ IDEA** para el backend y **Visual Studio Code** para el frontend
+- En Windows, **Git Bash** para ejecutar el script `update_db.sh`
+
+## Puesta en marcha
+
+### 1. Clonar el repositorio
+
+```bash
+git clone https://github.com/lucarmendariz/GargantuaProject.git
+cd GargantuaProject
+```
+
+### 2. Base de datos
+
+Con Docker:
+
+```bash
+docker run --name mariadb-gargantua -e MARIADB_ROOT_PASSWORD=<tu_clave> -e MARIADB_DATABASE=<nombre_bd> -p 3306:3306 -d mariadb:lts
+```
+
+Después, carga o actualiza las tablas con los scripts de `trazabilidad-api/database`:
+
+```bash
+cd trazabilidad-api/database
+bash update_db.sh
+```
+
+> En Windows, ejecuta el script desde **Git Bash**, no desde PowerShell. Si da errores de `\r`, convierte el archivo a finales de línea LF.
+
+### 3. Backend
+
+1. Abre la carpeta `trazabilidad-api` en **IntelliJ IDEA** (no la raíz del repositorio).
+2. Activa el procesamiento de anotaciones para Lombok: *Settings → Build, Execution, Deployment → Compiler → Annotation Processors → Enable annotation processing*.
+3. Configura la conexión en `src/main/resources/application.properties`:
+
+   ```properties
+   spring.datasource.url=jdbc:mariadb://localhost:3306/<nombre_bd>
+   spring.datasource.username=<usuario>
+   spring.datasource.password=<contraseña>
+   ```
+
+4. Arranca la aplicación desde IntelliJ o por terminal:
+
+   ```bash
+   cd trazabilidad-api
+   ./gradlew bootRun
+   ```
+
+   En Windows: `gradlew.bat bootRun`. La API queda disponible en `http://localhost:8080`.
+
+### 4. Frontend
+
+1. Abre la carpeta `GargantAppFront/gargantapp-front` en **Visual Studio Code**.
+2. Instala las dependencias y arranca el servidor de desarrollo:
+
+   ```bash
+   cd GargantAppFront/gargantapp-front
+   npm install
+   npm run dev
+   ```
+
+   [Confirma el comando en la sección `scripts` de `package.json`: puede ser `npm run dev` o `npm run serve`.]
+
+3. Abre la dirección que muestre la terminal (normalmente `http://localhost:5173`).
+
+> El frontend necesita que el backend esté en marcha. Si el navegador muestra errores de CORS, el backend debe permitir el origen del frontend.
+
+## Flujo de trabajo
+
+- Trabaja cada parte en su propio IDE y abre solo su carpeta.
+- Haz commits que afecten, siempre que sea posible, a una sola parte (backend o frontend) para que el historial sea fácil de leer.
+- No subas contraseñas ni claves. Los valores reales de `application.properties` y los archivos `.env` deben quedar fuera del repositorio.
+
+## Problemas frecuentes
+
+- **Puerto ocupado:** cambia `server.port` en el backend o el puerto del servidor de desarrollo del frontend.
+- **Error de conexión a la base de datos:** comprueba que MariaDB está arrancada y que URL, usuario, contraseña y nombre de la base coinciden con `application.properties`.
+- **Versión de Java incorrecta:** comprueba con `java -version` que tienes la 17.
+- **`mariadb: command not found` en `update_db.sh`:** instala el cliente de MariaDB o ejecuta los `.sql` dentro del contenedor de Docker.
+
 ## Índice
 
 - [Descripción](#descripción)
