@@ -1,3 +1,4 @@
+import { unitLabel } from './units';
 import { formatEpochDateTime } from './date';
 
 const row = (label, value) => ({ label, value });
@@ -21,7 +22,7 @@ export function historyToTimeline(log) {
 // Evento de un pedido convertido al formato de EventTimeline.
 export function eventToTimeline(event) {
   const quantity = event.quantity !== null && event.quantity !== undefined
-    ? `${event.quantity} ${event.measureUnit || ''}`.trim()
+    ? `${event.quantity} ${unitLabel(event.measureUnit)}`.trim()
     : null;
   return {
     key: event.eventId,

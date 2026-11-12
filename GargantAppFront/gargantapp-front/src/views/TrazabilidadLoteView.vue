@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import { unitLabel } from '../utils/units';
 import { useRouter } from 'vue-router';
 import apiClient from '../api';
 import EventTimeline from '../components/EventTimeline.vue';
@@ -56,11 +57,12 @@ onMounted(async () => {
             <template v-if="lot.supplierReference"> · Proveedor: {{ lot.supplierReference }}</template>
           </p>
           <div class="stats">
-            <div class="stat"><span class="stat-label">Entrada</span><span class="stat-value">{{ lot.quantity }} {{ lot.measureUnit }}</span></div>
-            <div class="stat"><span class="stat-label">Consumido</span><span class="stat-value">{{ lot.consumedQuantity }}</span></div>
-            <div class="stat"><span class="stat-label">Stock actual</span><span class="stat-value">{{ lot.currentStock }}</span></div>
-            <div class="stat"><span class="stat-label">Reservado</span><span class="stat-value">{{ lot.reservedQuantity }}</span></div>
-            <div class="stat"><span class="stat-label">Disponible</span><span class="stat-value">{{ lot.availableQuantity }}</span></div>
+            <div class="stat"><span class="stat-label">Entrada</span><span class="stat-value">{{ lot.quantity }} {{ unitLabel(lot.measureUnit) }}</span></div>
+            <div class="stat"><span class="stat-label">Consumido</span><span class="stat-value">{{ lot.consumedQuantity }} {{ unitLabel(lot.measureUnit) }}</span></div>
+            <div class="stat"><span class="stat-label">Stock actual</span><span class="stat-value">{{ lot.currentStock }} {{ unitLabel(lot.measureUnit) }}</span></div>
+            <div class="stat"><span class="stat-label">Reservado</span><span class="stat-value">{{ lot.reservedQuantity }} {{ unitLabel(lot.measureUnit) }}</span></div>
+            <div class="stat"><span class="stat-label">En uso</span><span class="stat-value">{{ lot.inUseQuantity }} {{ unitLabel(lot.measureUnit) }}</span></div>
+            <div class="stat"><span class="stat-label">Disponible</span><span class="stat-value">{{ lot.availableQuantity }} {{ unitLabel(lot.measureUnit) }}</span></div>
           </div>
         </section>
 
@@ -74,8 +76,8 @@ onMounted(async () => {
                 <span class="status" :class="`status-${usage.orderStatus}`">{{ usage.orderStatus }}</span>
               </div>
               <span class="item-meta">{{ usage.customerName || 'Sin cliente' }} · {{ formatEpochDate(usage.scheduledDate) }}</span>
-              <span class="item-meta">Reservado: {{ usage.reservedQuantity }} {{ lot.measureUnit }}</span>
-              <span v-if="usage.consumedQuantity !== null" class="item-meta">Consumido: {{ usage.consumedQuantity }} {{ lot.measureUnit }}</span>
+              <span class="item-meta">Reservado: {{ usage.reservedQuantity }} {{ unitLabel(lot.measureUnit) }}</span>
+              <span v-if="usage.consumedQuantity !== null" class="item-meta">Consumido: {{ usage.consumedQuantity }} {{ unitLabel(lot.measureUnit) }}</span>
             </RouterLink>
           </div>
         </section>

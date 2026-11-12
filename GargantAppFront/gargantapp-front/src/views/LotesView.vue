@@ -8,7 +8,7 @@ import { useAction } from '../composables/useAction';
 import { useTabRoute } from '../composables/useTabRoute';
 import { dateInputToEpoch, epochToDateInput, formatEpochDate, formatEpochDateTime, isExpired } from '../utils/date';
 import { errorMessage } from '../utils/errors';
-import { MEASURE_UNITS } from '../utils/units';
+import { MEASURE_UNITS, unitLabel } from '../utils/units';
 import { can } from '../utils/session';
 
 const router = useRouter();
@@ -209,10 +209,11 @@ watch(activeTab, (tab) => {
 
               <template v-if="editingLotId !== lot.lotId">
                 <div class="stats lot-stats">
-                  <div class="stat"><span class="stat-label">Entrada</span><span class="stat-value">{{ lot.quantity }} {{ lot.measureUnit }}</span></div>
-                  <div class="stat"><span class="stat-label">Stock</span><span class="stat-value">{{ lot.currentStock }}</span></div>
-                  <div class="stat"><span class="stat-label">Reservado</span><span class="stat-value">{{ lot.reservedQuantity }}</span></div>
-                  <div class="stat"><span class="stat-label">Disponible</span><span class="stat-value">{{ lot.availableQuantity }}</span></div>
+                  <div class="stat"><span class="stat-label">Entrada</span><span class="stat-value">{{ lot.quantity }} {{ unitLabel(lot.measureUnit) }}</span></div>
+                  <div class="stat"><span class="stat-label">Stock</span><span class="stat-value">{{ lot.currentStock }} {{ unitLabel(lot.measureUnit) }}</span></div>
+                  <div class="stat"><span class="stat-label">Reservado</span><span class="stat-value">{{ lot.reservedQuantity }} {{ unitLabel(lot.measureUnit) }}</span></div>
+                  <div class="stat"><span class="stat-label">En uso</span><span class="stat-value">{{ lot.inUseQuantity }} {{ unitLabel(lot.measureUnit) }}</span></div>
+                  <div class="stat"><span class="stat-label">Disponible</span><span class="stat-value">{{ lot.availableQuantity }} {{ unitLabel(lot.measureUnit) }}</span></div>
                 </div>
                 <span class="item-meta">
                   Caducidad: {{ formatEpochDate(lot.expirationDate) }}

@@ -482,4 +482,26 @@ class OrderApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$[?(@.orderId == " + order + ")]").doesNotExist())
                 .andExpect(jsonPath("$[?(@.orderId == " + stillPrepared + ")]").exists());
     }
+
+    @Test
+    void lotShowsQuantityInActiveOrdersAndRecordsTheClose() throws Exception {
+        int lot = lot(10);
+        int open = order();
+        body(addLine(open, lot, 1));
+        int order = order();
+        int line = body(addLine(order, lot, 4));
+        mvc.perform(admin(get("/api/lotes/" + lot))).andExpect(jsonPath("$.inUseQuantity", closeTo(5, 0.0001)));
+
+        // Preparado y entregado sigue en uso con lo consumido de verdad
+        prepare(order, consumption(line, 3)).andExpect(status().isNoContent());
+        deliver(order).andExpect(status().isNoContent());
+        mvc.perform(admin(get("/api/lotes/" + lot))).andExpect(jsonPath("$.inUseQuantity", closeTo(4, 0.0001)));
+
+        // Al cerrarse deja de contar y el cierre sale en el historial del lote
+        orderService.closeDelivered(0);
+        mvc.perform(admin(get("/api/lotes/" + lot + "/trazabilidad")))
+                .andExpect(jsonPath("$.lot.inUseQuantity", closeTo(1, 0.0001)))
+                .andExpect(jsonPath("$.history[0].actionType").value("CERRADO"))
+                .andExpect(jsonPath("$.history[0].quantityAffected", closeTo(3, 0.0001)));
+    }
 }

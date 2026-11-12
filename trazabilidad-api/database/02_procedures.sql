@@ -8,6 +8,16 @@ BEGIN
     RETURN COALESCE((SELECT name FROM app_user WHERE username = _username), _username);
 END;;
 
+-- Cantidad del lote en pedidos activos: lo reservado en los abiertos y lo consumido en los
+-- preparados o entregados. Al cerrar o cancelar el pedido deja de contar.
+CREATE OR REPLACE FUNCTION `Lot_InUse`(_lotId INT) RETURNS DECIMAL(12,4)
+    READS SQL DATA
+BEGIN
+    RETURN (SELECT COALESCE(SUM(IF(co.status = 'ABIERTO', ol.reserved_quantity, ol.consumed_quantity)), 0)
+            FROM order_line ol JOIN customer_order co ON co.order_id = ol.order_id
+            WHERE ol.lot_id = _lotId AND co.status IN ('ABIERTO', 'PREPARADO', 'ENTREGADO'));
+END;;
+
 -- =================================================================
 -- BLOQUE 1: CRUD DE PRODUCTOS (product)
 -- =================================================================
@@ -123,7 +133,7 @@ END;;
 -- 2.2 READ (ALL): Ver todos los lotes en el sistema
 CREATE OR REPLACE PROCEDURE `ProductLot_GetAll`()
 BEGIN
-    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot ORDER BY created_at DESC;
+    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, Lot_InUse(lot_id) AS in_use_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot ORDER BY created_at DESC;
 END;;
 
 -- 2.3 READ (BY PRODUCT ID): Ver los lotes de un producto específico
@@ -131,7 +141,7 @@ CREATE OR REPLACE PROCEDURE `ProductLot_FindByProductId`(
     IN _productId INT
 )
 BEGIN
-    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot WHERE product_id = _productId ORDER BY expiration_date ASC;
+    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, Lot_InUse(lot_id) AS in_use_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot WHERE product_id = _productId ORDER BY expiration_date ASC;
 END;;
 
 -- 2.4 READ (BY ID): Buscar un lote por su ID interno
@@ -139,7 +149,7 @@ CREATE OR REPLACE PROCEDURE `ProductLot_FindById`(
     IN _lotId INT
 )
 BEGIN
-    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot WHERE lot_id = _lotId;
+    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, Lot_InUse(lot_id) AS in_use_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot WHERE lot_id = _lotId;
 END;;
 
 -- 2.5 UPDATE: Modificar stock o datos de un lote
@@ -734,6 +744,12 @@ BEGIN
     SET status = 'CERRADO', closed_by = 'Sistema', closed_at = v_now
     WHERE status = 'ENTREGADO' AND delivered_at <= v_now - INTERVAL _hours HOUR;
     SET _closed = ROW_COUNT();
+
+    -- El cierre tambien queda en el historial de cada lote del pedido
+    INSERT INTO lot_history (lot_id, action_type, operator, quantity_affected, observations, order_id)
+    SELECT ol.lot_id, 'CERRADO', 'Sistema', ol.consumed_quantity, 'Pedido cerrado', ol.order_id
+    FROM order_line ol JOIN customer_order co ON co.order_id = ol.order_id
+    WHERE co.status = 'CERRADO' AND co.closed_by = 'Sistema' AND co.closed_at = v_now;
 
     INSERT INTO order_event (order_id, event_type, operator, notes)
     SELECT order_id, 'CERRADO', 'Sistema', CONCAT('Cierre automatico ', _hours, ' h despues de la entrega')

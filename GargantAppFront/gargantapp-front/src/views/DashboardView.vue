@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
+import { unitLabel } from '../utils/units';
 import { useRouter } from 'vue-router';
 import apiClient from '../api';
 import { can, clearSession, getUser, hasRole } from '../utils/session';
@@ -364,7 +365,7 @@ const logout = () => {
             </div>
             <RouterLink :to="`/lotes/${line.lotId}/trazabilidad`">Lote {{ line.lotNumber }}</RouterLink>
             <RouterLink :to="`/pedidos/${line.orderId}`">Pedido {{ line.orderNumber }}</RouterLink>
-            <span class="item-meta">En uso: {{ line.reservedQuantity }} {{ line.measureUnit }}</span>
+            <span class="item-meta">En uso: {{ line.reservedQuantity }} {{ unitLabel(line.measureUnit) }}</span>
             <span class="item-meta">Stock del lote: {{ line.currentStock }} · Disponible: {{ line.availableQuantity }}</span>
             <span class="item-meta">Reservado: {{ formatEpochDateTime(line.reservedAt) }} · Caducidad: {{ formatEpochDate(line.expirationDate) }}</span>
           </div>
@@ -397,15 +398,15 @@ const logout = () => {
               </tr>
               <tr>
                 <th>Cantidad Inicial:</th>
-                <td>{{ lotData.initialQuantity }} {{ lotData.measureUnit }}</td>
+                <td>{{ lotData.initialQuantity }} {{ unitLabel(lotData.measureUnit) }}</td>
               </tr>
               <tr>
                 <th>Stock Actual:</th>
-                <td>{{ lotData.currentStock }} {{ lotData.measureUnit }}</td>
+                <td>{{ lotData.currentStock }} {{ unitLabel(lotData.measureUnit) }}</td>
               </tr>
               <tr>
                 <th>Disponible:</th>
-                <td>{{ lotData.availableQuantity }} {{ lotData.measureUnit }} (reservado: {{ lotData.reservedQuantity }})</td>
+                <td>{{ lotData.availableQuantity }} {{ unitLabel(lotData.measureUnit) }} (reservado: {{ lotData.reservedQuantity }} {{ unitLabel(lotData.measureUnit) }})</td>
               </tr>
               <tr>
                 <th>Estado Actual:</th>
