@@ -42,6 +42,15 @@ public class ResultSetMapper {
                 .build();
     }
 
+    public static Customer getCustomerFromResultSet(ResultSet rs) throws SQLException {
+        return Customer.builder()
+                .customerId(rs.getInt("customer_id"))
+                .name(rs.getString("name"))
+                .createdAt(rs.getObject("created_at", Long.class))
+                .orderCount(rs.getInt("order_count"))
+                .build();
+    }
+
     public static ProductLot getProductLotFromResultSet(ResultSet rs) throws SQLException {
         return ProductLot.builder()
                 .lotId(rs.getInt("lot_id"))
@@ -52,6 +61,7 @@ public class ResultSetMapper {
                 .consumedQuantity(rs.getBigDecimal("consumed_quantity"))
                 .currentStock(rs.getBigDecimal("current_stock"))
                 .availableQuantity(rs.getBigDecimal("available_quantity"))
+                .inUseQuantity(rs.getBigDecimal("in_use_quantity"))
                 .measureUnit(rs.getString("measure_unit"))
                 .expirationDate(rs.getObject("expiration_date", Long.class))
                 .supplierReference(rs.getString("supplier_reference"))

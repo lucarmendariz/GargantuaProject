@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue';
+import { unitLabel } from '../utils/units';
 import { useRouter } from 'vue-router';
 import { useInventory } from '../composables/useInventory';
 import ProductForm from '../components/ProductForm.vue';
@@ -140,7 +141,7 @@ const handleConfirmDelete = async (id, name) => {
                     <RouterLink v-for="lot in getProductLots(prod.productId)" :key="lot.lotNumber" class="lot-pill"
                       :to="`/lotes/${lot.lotId}/trazabilidad`"
                       :title="`Expiración: ${formatEpochDate(lot.expirationDate)}. Ver trazabilidad`">
-                      <strong>{{ lot.lotNumber }}</strong>: {{ lot.availableQuantity }} / {{ lot.currentStock }} {{ lot.measureUnit }}
+                      <strong>{{ lot.lotNumber }}</strong>: {{ lot.availableQuantity }} / {{ lot.currentStock }} {{ unitLabel(lot.measureUnit) }}
                     </RouterLink>
                   </div>
                   <span v-else class="no-lots">Sin lotes activos</span>

@@ -62,7 +62,7 @@ class OrderApiTest extends IntegrationTestBase {
 
     private int order(long day) throws Exception {
         return body(mvc.perform(admin(post("/api/pedidos")).content(
-                "{\"orderNumber\":\"" + unique("PED") + "\",\"customerName\":\"Cliente\",\"scheduledDate\":" + day + "}")));
+                "{\"orderNumber\":\"" + unique("PED") + "\",\"scheduledDate\":" + day + "}")));
     }
 
     private int order() throws Exception {
@@ -237,6 +237,27 @@ class OrderApiTest extends IntegrationTestBase {
         movement("ADMIN", lot, "EN_PRODUCCION", -500).andExpect(status().isBadRequest());
         movement("ADMIN", lot, "DESBLOQUEADO", 0).andExpect(status().isBadRequest()); // no estaba bloqueado
         movement("ADMIN", 999999, "EN_PRODUCCION", 1).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void usingALotInProductionConsumesStockButNotWhatIsReserved() throws Exception {
+        int lot = lot(10);
+        body(addLine(order(), lot, 3));
+
+        movement("OPERARIO", lot, "EN_PRODUCCION", 4).andExpect(status().isCreated());
+        assertLot(lot, 6, 3, 3);
+
+        // Lo reservado para pedidos no se puede gastar en cocina, y hay que decir cuánto se usa
+        movement("OPERARIO", lot, "EN_PRODUCCION", 4)
+                .andExpect(status().isConflict())
+                .andExpect(content().string(containsString("stock disponible")));
+        movement("OPERARIO", lot, "EN_PRODUCCION", 0).andExpect(status().isBadRequest());
+        assertLot(lot, 6, 3, 3);
+
+        // Bloquear no gasta nada, y VENDIDO ya no existe
+        movement("ADMIN", lot, "BLOQUEADO", 6).andExpect(status().isCreated());
+        movement("ADMIN", lot, "VENDIDO", 1).andExpect(status().isBadRequest());
+        assertLot(lot, 6, 3, 3);
     }
 
     @Test
@@ -417,6 +438,8 @@ class OrderApiTest extends IntegrationTestBase {
                         .content("{\"lines\":[" + consumption(line, 1) + "]}"))
                 .andExpect(status().isNoContent());
         mvc.perform(as("OPERARIO", post("/api/pedidos/" + order + "/entregar"))).andExpect(status().isNoContent());
+        mvc.perform(as("OPERARIO", get("/api/clientes"))).andExpect(status().isOk());
+        mvc.perform(as("OPERARIO", post("/api/clientes")).content("{\"name\":\"" + unique("CLI") + "\"}")).andExpect(status().isForbidden());
     }
 
     private int preparedOrder() throws Exception {
@@ -481,5 +504,47 @@ class OrderApiTest extends IntegrationTestBase {
         mvc.perform(admin(get("/api/pedidos?estado=ABIERTO,PREPARADO,ENTREGADO")))
                 .andExpect(jsonPath("$[?(@.orderId == " + order + ")]").doesNotExist())
                 .andExpect(jsonPath("$[?(@.orderId == " + stillPrepared + ")]").exists());
+    }
+
+    @Test
+    void lotShowsQuantityInActiveOrdersAndRecordsTheClose() throws Exception {
+        int lot = lot(10);
+        int open = order();
+        body(addLine(open, lot, 1));
+        int order = order();
+        int line = body(addLine(order, lot, 4));
+        mvc.perform(admin(get("/api/lotes/" + lot))).andExpect(jsonPath("$.inUseQuantity", closeTo(5, 0.0001)));
+
+        // Preparado y entregado sigue en uso con lo consumido de verdad
+        prepare(order, consumption(line, 3)).andExpect(status().isNoContent());
+        deliver(order).andExpect(status().isNoContent());
+        mvc.perform(admin(get("/api/lotes/" + lot))).andExpect(jsonPath("$.inUseQuantity", closeTo(4, 0.0001)));
+
+        // Al cerrarse deja de contar y el cierre sale en el historial del lote
+        orderService.closeDelivered(0);
+        mvc.perform(admin(get("/api/lotes/" + lot + "/trazabilidad")))
+                .andExpect(jsonPath("$.lot.inUseQuantity", closeTo(1, 0.0001)))
+                .andExpect(jsonPath("$.history[0].actionType").value("CERRADO"))
+                .andExpect(jsonPath("$.history[0].quantityAffected", closeTo(3, 0.0001)));
+    }
+
+    @Test
+    void ordersPickACustomerFromTheList() throws Exception {
+        String name = unique("Cliente");
+        int customer = body(mvc.perform(admin(post("/api/clientes")).content("{\"name\":\"  " + name + " \"}")));
+
+        // El nombre se guarda sin espacios sobrantes y no se puede repetir
+        mvc.perform(admin(post("/api/clientes")).content("{\"name\":\"" + name + "\"}")).andExpect(status().isConflict());
+        mvc.perform(admin(post("/api/clientes")).content("{\"name\":\"  \"}")).andExpect(status().isBadRequest());
+
+        int order = body(mvc.perform(admin(post("/api/pedidos")).content(
+                "{\"orderNumber\":\"" + unique("PED") + "\",\"customerId\":" + customer + ",\"scheduledDate\":" + DAY + "}")));
+        mvc.perform(admin(get("/api/pedidos/" + order))).andExpect(jsonPath("$.order.customerName").value(name));
+        mvc.perform(admin(get("/api/clientes")))
+                .andExpect(jsonPath("$[?(@.customerId == " + customer + ")].orderCount").value(1));
+
+        mvc.perform(admin(post("/api/pedidos")).content(
+                "{\"orderNumber\":\"" + unique("PED") + "\",\"customerId\":999999,\"scheduledDate\":" + DAY + "}"))
+                .andExpect(status().isBadRequest());
     }
 }

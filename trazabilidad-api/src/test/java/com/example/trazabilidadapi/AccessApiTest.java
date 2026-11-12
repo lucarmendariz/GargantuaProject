@@ -93,6 +93,15 @@ class AccessApiTest extends IntegrationTestBase {
     }
 
     @Test
+    void productionCanReadLotsToPickThemButNotChangeThem() throws Exception {
+        // El OPERARIO solo tiene Produccion: elige el lote de la lista por su numero y su producto
+        mvc.perform(as("OPERARIO", get("/api/lotes"))).andExpect(status().isOk());
+        mvc.perform(as("OPERARIO", get("/api/productos/admin"))).andExpect(status().isOk());
+        mvc.perform(as("OPERARIO", put("/api/lotes/1")).content("{\"quantity\":999,\"measureUnit\":\"UNITS\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void tooLongUsernameIsRejectedWithAClearMessage() throws Exception {
         String user = "{\"username\":\"%s\",\"name\":\"Largo\",\"role\":\"OPERARIO\",\"password\":\"larga-segura\"}";
         mvc.perform(as("ADMIN", post("/api/admin/usuarios")).content(user.formatted("u".repeat(51))))

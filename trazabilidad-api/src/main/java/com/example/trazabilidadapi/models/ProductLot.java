@@ -17,6 +17,7 @@ public class ProductLot {
     private BigDecimal consumedQuantity;
     private BigDecimal currentStock;
     private BigDecimal availableQuantity;
+    private BigDecimal inUseQuantity;
     private String measureUnit;
     private Long expirationDate;
     private String supplierReference;

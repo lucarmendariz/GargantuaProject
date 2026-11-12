@@ -2,6 +2,7 @@ package com.example.trazabilidadapi.repositories;
 
 import com.example.trazabilidadapi.exceptions.OrderException;
 import com.example.trazabilidadapi.models.CreateOrderRequest;
+import com.example.trazabilidadapi.models.Customer;
 import com.example.trazabilidadapi.models.CustomerOrder;
 import com.example.trazabilidadapi.models.InUseLine;
 import com.example.trazabilidadapi.models.LotOrderUsage;
@@ -41,13 +42,38 @@ public class OrderRepository {
         return run(conn -> {
             try (CallableStatement stmt = conn.prepareCall("{call Order_Create(?, ?, ?, ?, ?, ?)}")) {
                 stmt.setString(1, request.getOrderNumber().trim());
-                stmt.setString(2, request.getCustomerName());
+                stmt.setObject(2, request.getCustomerId(), Types.INTEGER);
                 stmt.setLong(3, request.getScheduledDate());
                 stmt.setString(4, request.getNotes());
                 stmt.setString(5, operator);
                 stmt.registerOutParameter(6, Types.INTEGER);
                 stmt.execute();
                 return stmt.getInt(6);
+            }
+        });
+    }
+
+    public List<Customer> findCustomers() {
+        return run(conn -> {
+            try (CallableStatement stmt = conn.prepareCall("{call Customer_GetAll()}")) {
+                List<Customer> list = new ArrayList<>();
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        list.add(ResultSetMapper.getCustomerFromResultSet(rs));
+                    }
+                }
+                return list;
+            }
+        });
+    }
+
+    public int createCustomer(String name) {
+        return run(conn -> {
+            try (CallableStatement stmt = conn.prepareCall("{call Customer_Create(?, ?)}")) {
+                stmt.setString(1, name);
+                stmt.registerOutParameter(2, Types.INTEGER);
+                stmt.execute();
+                return stmt.getInt(2);
             }
         });
     }
@@ -244,6 +270,8 @@ public class OrderRepository {
             case 119 -> new OrderException(HttpStatus.CONFLICT, "Falta indicar el consumo real de alguna línea.");
             case 120 -> new OrderException(HttpStatus.CONFLICT, "El pedido no tiene lotes asignados.");
             case 123 -> new OrderException(HttpStatus.CONFLICT, "Solo se puede entregar un pedido preparado.");
+            case 126 -> new OrderException(HttpStatus.CONFLICT, "Ya existe un cliente con ese nombre.");
+            case 127 -> new OrderException(HttpStatus.BAD_REQUEST, "El cliente no existe.");
             case LOCK_WAIT_TIMEOUT, DEADLOCK -> new OrderException(HttpStatus.CONFLICT, "Otro usuario está modificando estos datos. Inténtalo de nuevo.");
             default -> null;
         };

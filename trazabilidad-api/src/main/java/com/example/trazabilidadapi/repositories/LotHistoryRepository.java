@@ -59,7 +59,7 @@ public class LotHistoryRepository {
             String message = String.valueOf(e.getMessage()).replaceFirst("^\\(conn=\\d+\\)\\s*", "");
             throw switch (e.getErrorCode()) {
                 case 106 -> new ResponseStatusException(HttpStatus.NOT_FOUND, message);
-                case 112 -> new ResponseStatusException(HttpStatus.CONFLICT, message);
+                case 112, 116 -> new ResponseStatusException(HttpStatus.CONFLICT, message);
                 case 125 -> new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
                 default -> new RuntimeException("Error al guardar registro en el historial", e);
             };

@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import SearchSelect from '../components/SearchSelect.vue';
+import { unitLabel } from '../utils/units';
 import { useRouter } from 'vue-router';
 import apiClient from '../api';
 import { askConfirm } from '../utils/confirm';
@@ -52,6 +54,10 @@ const lotOptions = computed(() => {
   const used = new Set((detail.value?.lines || []).map((line) => line.lotId));
   return lots.value.filter((lot) => lot.availableQuantity > 0 && !used.has(lot.lotId));
 });
+const lotSelectOptions = computed(() => lotOptions.value.map((lot) => ({
+  value: lot.lotId,
+  label: `${lot.lotNumber} · ${productName(lot.productId)} · disponible ${lot.availableQuantity} ${unitLabel(lot.measureUnit)}${isExpired(lot.expirationDate) ? ' · CADUCADO' : ''}`,
+})));
 
 const load = async () => {
   loadError.value = '';
@@ -157,12 +163,7 @@ onMounted(load);
           <form @submit.prevent="addLine" class="line-form">
             <div class="form-group">
               <label for="line-lot">Lote (*):</label>
-              <select id="line-lot" v-model="newLotId" required>
-                <option value="" disabled>Selecciona un lote...</option>
-                <option v-for="lot in lotOptions" :key="lot.lotId" :value="lot.lotId">
-                  {{ lot.lotNumber }} · {{ productName(lot.productId) }} · disponible {{ lot.availableQuantity }} {{ lot.measureUnit }}{{ isExpired(lot.expirationDate) ? ' · CADUCADO' : '' }}
-                </option>
-              </select>
+              <SearchSelect id="line-lot" v-model="newLotId" :options="lotSelectOptions" required placeholder="Busca por lote o producto..." />
             </div>
             <div class="form-group">
               <label for="line-quantity">Cantidad prevista (*):</label>
@@ -179,10 +180,10 @@ onMounted(load);
             <div v-for="line in detail.lines" :key="line.lineId" class="item-card">
               <span class="item-title">{{ line.productName }}</span>
               <RouterLink :to="`/lotes/${line.lotId}/trazabilidad`">{{ line.lotNumber }}</RouterLink>
-              <span class="item-meta">Reservado: {{ line.reservedQuantity }} {{ line.measureUnit }}</span>
-              <span v-if="line.consumedQuantity !== null" class="item-meta">Consumido: {{ line.consumedQuantity }} {{ line.measureUnit }}</span>
+              <span class="item-meta">Reservado: {{ line.reservedQuantity }} {{ unitLabel(line.measureUnit) }}</span>
+              <span v-if="line.consumedQuantity !== null" class="item-meta">Consumido: {{ line.consumedQuantity }} {{ unitLabel(line.measureUnit) }}</span>
               <div v-if="isOpen" class="form-group line-consumed">
-                <label :for="`consumed-${line.lineId}`">Consumo real ({{ line.measureUnit }}):</label>
+                <label :for="`consumed-${line.lineId}`">Consumo real ({{ unitLabel(line.measureUnit) }}):</label>
                 <input :id="`consumed-${line.lineId}`" v-model="consumption[line.lineId]" type="number" min="0" step="0.0001" required />
               </div>
               <button v-if="isOpen && canManage" @click="removeLine(line)" :disabled="busy" class="btn-secondary">Retirar del pedido</button>

@@ -17,7 +17,7 @@ describe('línea de tiempo', () => {
 
   it('muestra la cantidad con su unidad en los eventos del pedido', () => {
     const item = eventToTimeline({ eventId: 2, eventType: 'RESERVADO', eventTimestamp: 1800000000, operator: 'Ana', lotNumber: 'L-1', quantity: 2.5, measureUnit: 'KILOS', notes: null });
-    expect(item.rows).toContainEqual({ label: 'Cantidad', value: '2.5 KILOS' });
+    expect(item.rows).toContainEqual({ label: 'Cantidad', value: '2.5 kg' });
     expect(item.rows).toContainEqual({ label: 'Lote', value: 'L-1' });
   });
 });

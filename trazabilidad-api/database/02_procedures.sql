@@ -8,6 +8,16 @@ BEGIN
     RETURN COALESCE((SELECT name FROM app_user WHERE username = _username), _username);
 END;;
 
+-- Cantidad del lote en pedidos activos: lo reservado en los abiertos y lo consumido en los
+-- preparados o entregados. Al cerrar o cancelar el pedido deja de contar.
+CREATE OR REPLACE FUNCTION `Lot_InUse`(_lotId INT) RETURNS DECIMAL(12,4)
+    READS SQL DATA
+BEGIN
+    RETURN (SELECT COALESCE(SUM(IF(co.status = 'ABIERTO', ol.reserved_quantity, ol.consumed_quantity)), 0)
+            FROM order_line ol JOIN customer_order co ON co.order_id = ol.order_id
+            WHERE ol.lot_id = _lotId AND co.status IN ('ABIERTO', 'PREPARADO', 'ENTREGADO'));
+END;;
+
 -- =================================================================
 -- BLOQUE 1: CRUD DE PRODUCTOS (product)
 -- =================================================================
@@ -123,7 +133,7 @@ END;;
 -- 2.2 READ (ALL): Ver todos los lotes en el sistema
 CREATE OR REPLACE PROCEDURE `ProductLot_GetAll`()
 BEGIN
-    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot ORDER BY created_at DESC;
+    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, Lot_InUse(lot_id) AS in_use_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot ORDER BY created_at DESC;
 END;;
 
 -- 2.3 READ (BY PRODUCT ID): Ver los lotes de un producto específico
@@ -131,7 +141,7 @@ CREATE OR REPLACE PROCEDURE `ProductLot_FindByProductId`(
     IN _productId INT
 )
 BEGIN
-    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot WHERE product_id = _productId ORDER BY expiration_date ASC;
+    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, Lot_InUse(lot_id) AS in_use_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot WHERE product_id = _productId ORDER BY expiration_date ASC;
 END;;
 
 -- 2.4 READ (BY ID): Buscar un lote por su ID interno
@@ -139,7 +149,7 @@ CREATE OR REPLACE PROCEDURE `ProductLot_FindById`(
     IN _lotId INT
 )
 BEGIN
-    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot WHERE lot_id = _lotId;
+    SELECT lot_id, product_id, lot_number, quantity, reserved_quantity, consumed_quantity, quantity - consumed_quantity AS current_stock, quantity - consumed_quantity - reserved_quantity AS available_quantity, Lot_InUse(lot_id) AS in_use_quantity, measure_unit, expiration_date, supplier_reference, UNIX_TIMESTAMP(created_at) AS created_at, UNIX_TIMESTAMP(updated_at) AS updated_at FROM product_lot WHERE lot_id = _lotId;
 END;;
 
 -- 2.5 UPDATE: Modificar stock o datos de un lote
@@ -227,7 +237,8 @@ BEGIN
     IF v_lot IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No existe ningún lote con ese ID.', MYSQL_ERRNO = 106;
     END IF;
-    IF _actionType IS NULL OR _actionType NOT IN ('RECEPCIONADO', 'EN_PRODUCCION', 'BLOQUEADO', 'VENDIDO', 'DESBLOQUEADO') THEN
+    -- VENDIDO ya no se registra: las ventas sin lote no descuentan materia prima y las de lotes van por pedidos
+    IF _actionType IS NULL OR _actionType NOT IN ('RECEPCIONADO', 'EN_PRODUCCION', 'BLOQUEADO', 'DESBLOQUEADO') THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Movimiento no válido.', MYSQL_ERRNO = 125;
     END IF;
     IF _quantityAffected < 0 THEN
@@ -245,6 +256,20 @@ BEGIN
     END IF;
     IF _actionType = 'DESBLOQUEADO' AND (v_state IS NULL OR v_state <> 'BLOQUEADO') THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El lote no está bloqueado.', MYSQL_ERRNO = 125;
+    END IF;
+
+    -- Usar en produccion (cocina, venta sin lote) gasta materia prima: se descuenta del stock como un consumo.
+    -- No puede tocar lo reservado para pedidos: la comprobacion y el UPDATE son una sola sentencia.
+    IF _actionType = 'EN_PRODUCCION' THEN
+        IF _quantityAffected IS NULL OR _quantityAffected <= 0 THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Indica la cantidad usada en producción.', MYSQL_ERRNO = 125;
+        END IF;
+        UPDATE product_lot
+        SET consumed_quantity = consumed_quantity + _quantityAffected
+        WHERE lot_id = _lotId AND quantity - consumed_quantity - reserved_quantity >= _quantityAffected;
+        IF ROW_COUNT() = 0 THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No hay stock disponible suficiente en el lote (lo reservado para pedidos no se puede usar).', MYSQL_ERRNO = 116;
+        END IF;
     END IF;
 
     INSERT INTO lot_history (lot_id, action_type, operator, operator_username, quantity_affected, ocr_raw_text, observations)
@@ -475,9 +500,31 @@ BEGIN
     END IF;
 END;;
 
+-- Clientes: se eligen de esta lista al crear un pedido
+CREATE OR REPLACE PROCEDURE `Customer_GetAll`()
+BEGIN
+    SELECT c.customer_id, c.name, UNIX_TIMESTAMP(c.created_at) AS created_at,
+           (SELECT COUNT(*) FROM customer_order co WHERE co.customer_id = c.customer_id) AS order_count
+    FROM customer c
+    ORDER BY c.name;
+END;;
+
+CREATE OR REPLACE PROCEDURE `Customer_Create`(
+    IN _name VARCHAR(150),
+    OUT _customerId INT
+)
+BEGIN
+    IF (SELECT COUNT(*) FROM customer WHERE name = _name) > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ya existe un cliente con ese nombre.', MYSQL_ERRNO = 126;
+    END IF;
+
+    INSERT INTO customer (name) VALUES (_name);
+    SET _customerId = LAST_INSERT_ID();
+END;;
+
 CREATE OR REPLACE PROCEDURE `Order_Create`(
     IN _orderNumber VARCHAR(100),
-    IN _customerName VARCHAR(150),
+    IN _customerId INT,
     IN _scheduledDate BIGINT,
     IN _notes TEXT,
     IN _operator VARCHAR(100),
@@ -487,9 +534,12 @@ BEGIN
     IF (SELECT COUNT(*) FROM customer_order WHERE order_number = _orderNumber) > 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ya existe un pedido con ese numero.', MYSQL_ERRNO = 110;
     END IF;
+    IF _customerId IS NOT NULL AND (SELECT COUNT(*) FROM customer WHERE customer_id = _customerId) = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El cliente no existe.', MYSQL_ERRNO = 127;
+    END IF;
 
-    INSERT INTO customer_order (order_number, customer_name, scheduled_date, notes, created_by)
-    VALUES (_orderNumber, _customerName, _scheduledDate, _notes, Operator_Name(_operator));
+    INSERT INTO customer_order (order_number, customer_id, scheduled_date, notes, created_by)
+    VALUES (_orderNumber, _customerId, _scheduledDate, _notes, Operator_Name(_operator));
     SET _orderId = LAST_INSERT_ID();
 
     INSERT INTO order_event (order_id, event_type, operator, operator_username, notes)
@@ -504,12 +554,13 @@ CREATE OR REPLACE PROCEDURE `Order_GetAll`(
     IN _to BIGINT
 )
 BEGIN
-    SELECT co.order_id, co.order_number, co.customer_name, co.scheduled_date, co.status, co.notes,
+    SELECT co.order_id, co.order_number, cu.name AS customer_name, co.scheduled_date, co.status, co.notes,
            co.created_by, co.closed_by, UNIX_TIMESTAMP(co.created_at) AS created_at, UNIX_TIMESTAMP(co.closed_at) AS closed_at,
            co.prepared_by, UNIX_TIMESTAMP(co.prepared_at) AS prepared_at,
            co.delivered_by, UNIX_TIMESTAMP(co.delivered_at) AS delivered_at,
            (SELECT COUNT(*) FROM order_line ol WHERE ol.order_id = co.order_id) AS line_count
     FROM customer_order co
+             LEFT JOIN customer cu ON cu.customer_id = co.customer_id
     WHERE (_status IS NULL OR FIND_IN_SET(co.status, _status) > 0)
       AND (_from IS NULL OR co.scheduled_date >= _from)
       AND (_to IS NULL OR co.scheduled_date < _to)
@@ -518,12 +569,13 @@ END;;
 
 CREATE OR REPLACE PROCEDURE `Order_FindById`(IN _orderId INT)
 BEGIN
-    SELECT co.order_id, co.order_number, co.customer_name, co.scheduled_date, co.status, co.notes,
+    SELECT co.order_id, co.order_number, cu.name AS customer_name, co.scheduled_date, co.status, co.notes,
            co.created_by, co.closed_by, UNIX_TIMESTAMP(co.created_at) AS created_at, UNIX_TIMESTAMP(co.closed_at) AS closed_at,
            co.prepared_by, UNIX_TIMESTAMP(co.prepared_at) AS prepared_at,
            co.delivered_by, UNIX_TIMESTAMP(co.delivered_at) AS delivered_at,
            (SELECT COUNT(*) FROM order_line ol WHERE ol.order_id = co.order_id) AS line_count
     FROM customer_order co
+             LEFT JOIN customer cu ON cu.customer_id = co.customer_id
     WHERE co.order_id = _orderId;
 END;;
 
@@ -735,6 +787,12 @@ BEGIN
     WHERE status = 'ENTREGADO' AND delivered_at <= v_now - INTERVAL _hours HOUR;
     SET _closed = ROW_COUNT();
 
+    -- El cierre tambien queda en el historial de cada lote del pedido
+    INSERT INTO lot_history (lot_id, action_type, operator, quantity_affected, observations, order_id)
+    SELECT ol.lot_id, 'CERRADO', 'Sistema', ol.consumed_quantity, 'Pedido cerrado', ol.order_id
+    FROM order_line ol JOIN customer_order co ON co.order_id = ol.order_id
+    WHERE co.status = 'CERRADO' AND co.closed_by = 'Sistema' AND co.closed_at = v_now;
+
     INSERT INTO order_event (order_id, event_type, operator, notes)
     SELECT order_id, 'CERRADO', 'Sistema', CONCAT('Cierre automatico ', _hours, ' h despues de la entrega')
     FROM customer_order
@@ -772,7 +830,7 @@ CREATE OR REPLACE PROCEDURE `OrderLine_GetInUse`(
     IN _to BIGINT
 )
 BEGIN
-    SELECT ol.line_id, ol.order_id, co.order_number, co.customer_name, ol.lot_id, pl.lot_number, p.name AS product_name,
+    SELECT ol.line_id, ol.order_id, co.order_number, cu.name AS customer_name, ol.lot_id, pl.lot_number, p.name AS product_name,
            p.sku AS product_sku, pl.measure_unit, ol.reserved_quantity,
            pl.quantity - pl.consumed_quantity AS current_stock,
            pl.quantity - pl.consumed_quantity - pl.reserved_quantity AS available_quantity,
@@ -780,6 +838,7 @@ BEGIN
            UNIX_TIMESTAMP(ol.created_at) AS reserved_at
     FROM order_line ol
              JOIN customer_order co ON co.order_id = ol.order_id
+             LEFT JOIN customer cu ON cu.customer_id = co.customer_id
              JOIN product_lot pl ON pl.lot_id = ol.lot_id
              JOIN product p ON p.product_id = pl.product_id
     WHERE co.status = 'ABIERTO'
@@ -791,10 +850,11 @@ END;;
 -- Pedidos en los que se ha usado un lote
 CREATE OR REPLACE PROCEDURE `Lot_GetOrders`(IN _lotId INT)
 BEGIN
-    SELECT co.order_id, co.order_number, co.customer_name, co.status AS order_status, co.scheduled_date,
+    SELECT co.order_id, co.order_number, cu.name AS customer_name, co.status AS order_status, co.scheduled_date,
            ol.reserved_quantity, ol.consumed_quantity
     FROM order_line ol
              JOIN customer_order co ON co.order_id = ol.order_id
+             LEFT JOIN customer cu ON cu.customer_id = co.customer_id
     WHERE ol.lot_id = _lotId
     ORDER BY co.scheduled_date DESC, co.order_id DESC;
 END;;

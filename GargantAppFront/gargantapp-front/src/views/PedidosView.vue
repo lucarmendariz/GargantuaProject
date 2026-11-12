@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import apiClient from '../api';
+import SearchSelect from '../components/SearchSelect.vue';
 import TabMenu from '../components/TabMenu.vue';
 import PedidosCerradosList from '../components/PedidosCerradosList.vue';
 import { useTabRoute } from '../composables/useTabRoute';
@@ -18,6 +19,7 @@ const tabs = computed(() => [
   { id: 'en-curso', label: 'Pedidos en curso' },
   ...(canManage.value ? [{ id: 'nuevo', label: 'Nuevo pedido' }] : []),
   { id: 'cerrados', label: 'Pedidos cerrados' },
+  ...(canManage.value ? [{ id: 'clientes', label: 'Clientes' }] : []),
 ]);
 const activeTab = useTabRoute(tabs);
 
@@ -28,10 +30,42 @@ const IN_PROGRESS = 'ABIERTO,PREPARADO,ENTREGADO';
 const statusFilter = ref(IN_PROGRESS);
 
 const orderNumber = ref('');
-const customerName = ref('');
+const customerId = ref('');
 const scheduledDate = ref(todayInputValue());
 const notes = ref('');
 const formError = ref('');
+
+// Clientes: el pedido se asigna a uno de la lista, no se escribe el nombre a mano
+const customers = ref([]);
+const customersError = ref('');
+const newCustomerName = ref('');
+const customerFormError = ref('');
+const customerCreated = ref('');
+
+const loadCustomers = async () => {
+  customersError.value = '';
+  try {
+    customers.value = await apiClient.get('/clientes');
+  } catch (error) {
+    customers.value = [];
+    customersError.value = await errorMessage(error, 'No se pudieron cargar los clientes.');
+  }
+};
+
+const customerOptions = computed(() => customers.value.map((customer) => ({ value: customer.customerId, label: customer.name })));
+
+const createCustomer = async () => {
+  customerFormError.value = '';
+  customerCreated.value = '';
+  try {
+    await apiClient.post('/clientes', { name: newCustomerName.value });
+    customerCreated.value = `Cliente «${newCustomerName.value.trim()}» creado.`;
+    newCustomerName.value = '';
+    await loadCustomers();
+  } catch (error) {
+    customerFormError.value = await errorMessage(error, 'No se pudo crear el cliente.');
+  }
+};
 
 const loadOrders = async () => {
   loading.value = true;
@@ -52,7 +86,7 @@ const createOrder = async () => {
   try {
     const orderId = await apiClient.post('/pedidos', {
       orderNumber: orderNumber.value,
-      customerName: customerName.value || null,
+      customerId: customerId.value || null,
       scheduledDate: dateInputToEpoch(scheduledDate.value),
       notes: notes.value || null
     });
@@ -62,7 +96,10 @@ const createOrder = async () => {
   }
 };
 
-onMounted(loadOrders);
+onMounted(() => {
+  loadOrders();
+  if (canManage.value) loadCustomers();
+});
 watch(statusFilter, loadOrders);
 </script>
 
@@ -76,7 +113,7 @@ watch(statusFilter, loadOrders);
     <div class="card-body">
       <TabMenu v-model="activeTab" :tabs="tabs" label="Acciones de pedidos" />
 
-      <p v-if="activeTab !== 'cerrados'" class="item-meta flow-help">
+      <p v-if="activeTab === 'en-curso' || activeTab === 'nuevo'" class="item-meta flow-help">
         Ciclo de un pedido: Abierto → Preparado → Entregado → Cerrado (automático a los 2 días de la entrega).
       </p>
 
@@ -89,7 +126,9 @@ watch(statusFilter, loadOrders);
           </div>
           <div class="form-group">
             <label for="order-customer">Cliente:</label>
-            <input id="order-customer" v-model="customerName" type="text" placeholder="Ej: Bar Central" />
+            <SearchSelect id="order-customer" v-model="customerId" :options="customerOptions" empty-label="Sin cliente" placeholder="Busca un cliente..." />
+            <span v-if="customersError" class="msg-error">{{ customersError }}</span>
+            <span v-else-if="customers.length === 0" class="item-meta">Aún no hay clientes: créalos en la pestaña Clientes.</span>
           </div>
           <div class="form-group">
             <label for="order-date">Fecha programada (*):</label>
@@ -136,6 +175,29 @@ watch(statusFilter, loadOrders);
         </div>
       </section>
 
+      <section v-if="activeTab === 'clientes'" id="panel-clientes" role="tabpanel" aria-labelledby="tab-clientes" class="panel">
+        <h3>Nuevo cliente</h3>
+        <form @submit.prevent="createCustomer" class="customer-form">
+          <div class="form-group">
+            <label for="customer-name">Nombre (*):</label>
+            <input id="customer-name" v-model="newCustomerName" type="text" required maxlength="150" placeholder="Ej: Bar Central" />
+          </div>
+          <button type="submit">Crear cliente</button>
+        </form>
+        <p v-if="customerFormError" class="msg-error">{{ customerFormError }}</p>
+        <p v-else-if="customerCreated" class="msg-success" role="status">{{ customerCreated }}</p>
+
+        <h3 class="customers-title">Clientes</h3>
+        <p v-if="customersError" class="msg-error">{{ customersError }}</p>
+        <p v-else-if="customers.length === 0" class="empty-state">Todavía no hay clientes.</p>
+        <div v-else class="item-list">
+          <div v-for="customer in customers" :key="customer.customerId" class="item-card">
+            <span class="item-title">{{ customer.name }}</span>
+            <span class="item-meta">{{ customer.orderCount }} pedido(s)</span>
+          </div>
+        </div>
+      </section>
+
       <div v-if="activeTab === 'cerrados'" id="panel-cerrados" role="tabpanel" aria-labelledby="tab-cerrados" class="tab-panel">
         <PedidosCerradosList />
       </div>
@@ -169,4 +231,20 @@ watch(statusFilter, loadOrders);
 
 .filter {
   flex: 0 1 220px;
-}</style>
+}
+
+.customer-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.customer-form .form-group {
+  flex: 1 1 260px;
+}
+
+.customers-title {
+  margin-top: 24px;
+}
+</style>

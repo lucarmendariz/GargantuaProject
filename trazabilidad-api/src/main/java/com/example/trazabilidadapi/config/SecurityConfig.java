@@ -64,13 +64,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/pedidos/**").access(rule.of(u -> u.can(VER, "PEDIDOS")))
                         .requestMatchers(HttpMethod.POST, "/api/pedidos/*/preparar", "/api/pedidos/*/entregar").access(rule.of(u -> u.can(VER, "PEDIDOS")))
                         .requestMatchers("/api/pedidos/**").access(rule.of(u -> u.can(GESTIONAR, "PEDIDOS")))
+                        // Clientes: se consultan con los pedidos; darlos de alta es de quien crea pedidos
+                        .requestMatchers(HttpMethod.GET, "/api/clientes").access(rule.of(u -> u.can(VER, "PEDIDOS")))
+                        .requestMatchers("/api/clientes/**").access(rule.of(u -> u.can(GESTIONAR, "PEDIDOS")))
                         // Produccion registra movimientos; el historial solo se consulta
                         .requestMatchers(HttpMethod.POST, "/api/historial/escanear").access(rule.of(u -> u.can(VER, "PRODUCCION")))
                         .requestMatchers("/api/historial/**").access(rule.of(u -> u.can(VER, "HISTORIAL")))
                         // Trazabilidad de un lote (Panel Central, pedidos, lotes): cualquier usuario activo
                         .requestMatchers(HttpMethod.GET, "/api/trazabilidad/**", "/api/lotes/*/trazabilidad").access(rule.of(u -> true))
-                        // Catalogo y lotes: se leen desde Inventario, Lotes y al asignar lotes a un pedido
-                        .requestMatchers(HttpMethod.GET, "/api/productos/**", "/api/lotes/**").access(rule.of(u -> u.can(VER, "INVENTARIO", "LOTES") || u.can(GESTIONAR, "PEDIDOS")))
+                        // Catalogo y lotes: se leen desde Inventario, Lotes, al asignar lotes a un pedido y al elegir el lote en Produccion
+                        .requestMatchers(HttpMethod.GET, "/api/productos/**", "/api/lotes/**").access(rule.of(u -> u.can(VER, "INVENTARIO", "LOTES", "PRODUCCION") || u.can(GESTIONAR, "PEDIDOS")))
                         .requestMatchers(HttpMethod.POST, "/api/lotes").access(rule.of(u -> u.can(GESTIONAR, "INVENTARIO", "LOTES")))
                         .requestMatchers("/api/lotes/**").access(rule.of(u -> u.can(GESTIONAR, "LOTES")))
                         .requestMatchers("/api/productos/**").access(rule.of(u -> u.can(GESTIONAR, "INVENTARIO")))

@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS order_event;
 DROP TABLE IF EXISTS order_line;
 DROP TABLE IF EXISTS lot_history;
 DROP TABLE IF EXISTS customer_order;
+DROP TABLE IF EXISTS customer;
 DROP TABLE IF EXISTS product_lot;
 DROP TABLE IF EXISTS product;
 DROP TABLE IF EXISTS app_user;
@@ -46,11 +47,18 @@ CREATE TABLE product_lot (
          CONSTRAINT fk_lot_product FOREIGN KEY (product_id) REFERENCES product (product_id)
 ) ENGINE=InnoDB;
 
+-- Clientes a los que se sirven los pedidos
+CREATE TABLE customer (
+         customer_id INT AUTO_INCREMENT PRIMARY KEY,
+         name VARCHAR(150) UNIQUE NOT NULL,
+         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 -- Pedidos: cada uno agrupa los lotes que se van a usar
 CREATE TABLE customer_order (
          order_id INT AUTO_INCREMENT PRIMARY KEY,
          order_number VARCHAR(100) UNIQUE NOT NULL,
-         customer_name VARCHAR(150) DEFAULT NULL,
+         customer_id INT DEFAULT NULL,
          scheduled_date BIGINT NOT NULL, -- Dia programado (epoch en segundos)
          status VARCHAR(20) NOT NULL DEFAULT 'ABIERTO', -- ABIERTO, PREPARADO, ENTREGADO, CERRADO, CANCELADO
          notes TEXT DEFAULT NULL,
@@ -63,7 +71,8 @@ CREATE TABLE customer_order (
          prepared_at TIMESTAMP NULL DEFAULT NULL,
          delivered_at TIMESTAMP NULL DEFAULT NULL,
          INDEX idx_order_schedule (scheduled_date, status),
-         INDEX idx_order_delivered (status, delivered_at)
+         INDEX idx_order_delivered (status, delivered_at),
+         CONSTRAINT fk_order_customer FOREIGN KEY (customer_id) REFERENCES customer (customer_id)
 ) ENGINE=InnoDB;
 
 -- Tabla de Historial (Log de movimientos y captura OCR)

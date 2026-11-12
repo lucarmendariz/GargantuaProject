@@ -1,17 +1,39 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import apiClient from '../api';
 import CameraScanner from '../components/CameraScanner.vue';
+import SearchSelect from '../components/SearchSelect.vue';
 import { errorMessage as describeError } from '../utils/errors';
 import { parseLabel } from '../utils/labelParser';
+import { unitLabel } from '../utils/units';
 import { can, getUser } from '../utils/session';
 
 const router = useRouter();
 // Levantar un bloqueo de calidad: solo quien gestiona los lotes (la API también lo exige)
 const canUnblock = can('LOTES', 'GESTIONAR');
 
-// Cámara: lee la etiqueta, busca el lote por su número y rellena el ID y el texto OCR
+// Lotes para elegir por su número o su producto (no por el ID interno)
+const lots = ref([]);
+const products = ref([]);
+const lotsError = ref('');
+const productName = (productId) => products.value.find((product) => product.productId === productId)?.name || '';
+const lotOptions = computed(() => lots.value.map((lot) => ({
+  value: lot.lotId,
+  label: `${lot.lotNumber} · ${productName(lot.productId)} · disponible ${lot.availableQuantity} ${unitLabel(lot.measureUnit)}`,
+})));
+const selectedLot = computed(() => lots.value.find((lot) => lot.lotId === Number(lotId.value)));
+
+const loadLots = async () => {
+  try {
+    [lots.value, products.value] = await Promise.all([apiClient.get('/lotes'), apiClient.get('/productos/admin')]);
+  } catch (error) {
+    lotsError.value = await describeError(error, 'No se pudieron cargar los lotes.');
+  }
+};
+onMounted(loadLots);
+
+// Cámara: lee la etiqueta, busca el lote por su número y lo deja elegido junto con el texto OCR
 const scannerOpen = ref(false);
 const scannedLot = ref('');
 const onScan = async ({ text, source }) => {
@@ -23,7 +45,7 @@ const onScan = async ({ text, source }) => {
   // El campo es de una línea: se separan las líneas de la etiqueta con " | "
   ocrRawText.value = label.raw.split(/\s*\n\s*/).filter(Boolean).join(' | ');
   if (!label.lotNumber) {
-    errorMessage.value = 'No se ha encontrado un número de lote en lo leído. Indica el ID del lote a mano.';
+    errorMessage.value = 'No se ha encontrado un número de lote en lo leído. Búscalo en la lista.';
     return;
   }
   try {
@@ -60,8 +82,12 @@ const submitProductionLog = async () => {
       observations: observations.value
     });
 
-    successMessage.value = 'Movimiento de producción enviado y guardado correctamente.';
-    
+    successMessage.value = actionType.value === 'EN_PRODUCCION'
+      ? `Uso registrado: se han descontado ${quantityAffected.value} ${unitLabel(selectedLot.value?.measureUnit)} del lote ${selectedLot.value?.lotNumber ?? ''}.`
+      : 'Movimiento registrado correctamente.';
+    // El stock disponible ha cambiado
+    loadLots();
+
     // Limpiar el formulario menos el operario
     lotId.value = ''; quantityAffected.value = ''; ocrRawText.value = ''; observations.value = ''; scannedLot.value = '';
   } catch (error) {
@@ -79,7 +105,7 @@ const submitProductionLog = async () => {
     </header>
 
     <div class="card-body">
-      <p class="subtitle">Registrar manualmente un cambio de estado en la cadena de elaboración.</p>
+      <p class="subtitle">Registra la materia prima que se usa en cocina (se descuenta del stock) o bloquea un lote por calidad.</p>
       
       <form @submit.prevent="submitProductionLog" class="prod-form panel">
         <div class="scan-row">
@@ -88,34 +114,40 @@ const submitProductionLog = async () => {
         </div>
         <div class="form-grid">
           <div class="form-group">
-            <label>ID Interno del Lote (*):</label>
-            <input v-model="lotId" type="number" required placeholder="Ej: 1" />
+            <label for="prod-lot">Lote (*):</label>
+            <SearchSelect id="prod-lot" v-model="lotId" :options="lotOptions" required placeholder="Busca por número de lote o producto..." />
+            <span v-if="lotsError" class="msg-error">{{ lotsError }}</span>
           </div>
 
           <div class="form-group">
-            <label>Operación / Estado:</label>
-            <select v-model="actionType">
-              <option value="EN_PRODUCCION">EN PRODUCCIÓN (Cocinado/Giro)</option>
-              <option value="BLOQUEADO">BLOQUEADO (Control de Calidad)</option>
-              <option value="VENDIDO">VENDIDO (Salida de Almacén)</option>
-              <option v-if="canUnblock" value="DESBLOQUEADO">DESBLOQUEADO (Levantar el bloqueo de calidad)</option>
+            <label for="prod-action">Operación:</label>
+            <select id="prod-action" v-model="actionType">
+              <option value="EN_PRODUCCION">USAR EN PRODUCCIÓN (descuenta del stock)</option>
+              <option value="BLOQUEADO">BLOQUEAR (control de calidad)</option>
+              <option v-if="canUnblock" value="DESBLOQUEADO">DESBLOQUEAR (levantar el bloqueo de calidad)</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label>Cantidad Afectada:</label>
-            <input v-model="quantityAffected" type="number" step="0.0001" placeholder="Ej: 50.00" />
+            <label for="prod-quantity">
+              {{ actionType === 'EN_PRODUCCION' ? 'Cantidad usada (*)' : 'Cantidad afectada' }}{{ selectedLot ? ` (${unitLabel(selectedLot.measureUnit)})` : '' }}:
+            </label>
+            <input id="prod-quantity" v-model="quantityAffected" type="number" min="0" step="0.0001" placeholder="Ej: 50"
+                   :required="actionType === 'EN_PRODUCCION'" />
+            <span v-if="actionType === 'EN_PRODUCCION' && selectedLot" class="item-meta">
+              Disponible: {{ selectedLot.availableQuantity }} {{ unitLabel(selectedLot.measureUnit) }} (lo reservado para pedidos no se puede usar)
+            </span>
           </div>
 
           <div class="form-group">
-            <label>Texto del Escáner OCR (Opcional):</label>
-            <input v-model="ocrRawText" type="text" placeholder="Lectura en bruto de la cámara..." />
+            <label for="prod-ocr">Texto de la etiqueta (opcional, por si la cámara no lee bien):</label>
+            <input id="prod-ocr" v-model="ocrRawText" type="text" placeholder="Lectura en bruto de la cámara..." />
           </div>
         </div>
 
         <div class="form-group full-width">
-          <label>Observaciones de Planta:</label>
-          <textarea v-model="observations" rows="3" placeholder="Detalles de la cochura o lote de huevos/patatas usado..."></textarea>
+          <label for="prod-notes">Observaciones de Planta:</label>
+          <textarea id="prod-notes" v-model="observations" rows="3" placeholder="Detalles de la cochura o lote de huevos/patatas usado..."></textarea>
         </div>
 
         <div class="footer-actions">
