@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import SearchSelect from '../components/SearchSelect.vue';
 import { unitLabel } from '../utils/units';
 import { useRouter } from 'vue-router';
 import apiClient from '../api';
@@ -53,6 +54,10 @@ const lotOptions = computed(() => {
   const used = new Set((detail.value?.lines || []).map((line) => line.lotId));
   return lots.value.filter((lot) => lot.availableQuantity > 0 && !used.has(lot.lotId));
 });
+const lotSelectOptions = computed(() => lotOptions.value.map((lot) => ({
+  value: lot.lotId,
+  label: `${lot.lotNumber} · ${productName(lot.productId)} · disponible ${lot.availableQuantity} ${unitLabel(lot.measureUnit)}${isExpired(lot.expirationDate) ? ' · CADUCADO' : ''}`,
+})));
 
 const load = async () => {
   loadError.value = '';
@@ -158,12 +163,7 @@ onMounted(load);
           <form @submit.prevent="addLine" class="line-form">
             <div class="form-group">
               <label for="line-lot">Lote (*):</label>
-              <select id="line-lot" v-model="newLotId" required>
-                <option value="" disabled>Selecciona un lote...</option>
-                <option v-for="lot in lotOptions" :key="lot.lotId" :value="lot.lotId">
-                  {{ lot.lotNumber }} · {{ productName(lot.productId) }} · disponible {{ lot.availableQuantity }} {{ unitLabel(lot.measureUnit) }}{{ isExpired(lot.expirationDate) ? ' · CADUCADO' : '' }}
-                </option>
-              </select>
+              <SearchSelect id="line-lot" v-model="newLotId" :options="lotSelectOptions" required placeholder="Busca por lote o producto..." />
             </div>
             <div class="form-group">
               <label for="line-quantity">Cantidad prevista (*):</label>

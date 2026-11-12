@@ -4,6 +4,7 @@ import com.example.trazabilidadapi.exceptions.OrderException;
 import com.example.trazabilidadapi.models.AddOrderLineRequest;
 import com.example.trazabilidadapi.models.PrepareOrderRequest;
 import com.example.trazabilidadapi.models.CreateOrderRequest;
+import com.example.trazabilidadapi.models.Customer;
 import com.example.trazabilidadapi.models.CustomerOrder;
 import com.example.trazabilidadapi.models.InUseLine;
 import com.example.trazabilidadapi.models.LotTraceability;
@@ -25,6 +26,16 @@ public class OrderController {
 
     public OrderController(OrderService service) {
         this.service = service;
+    }
+
+    @GetMapping("/clientes")
+    public List<Customer> customers() {
+        return service.customers();
+    }
+
+    @PostMapping("/clientes")
+    public ResponseEntity<Integer> createCustomer(@RequestBody Customer request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.createCustomer(request.getName()));
     }
 
     @GetMapping("/pedidos")

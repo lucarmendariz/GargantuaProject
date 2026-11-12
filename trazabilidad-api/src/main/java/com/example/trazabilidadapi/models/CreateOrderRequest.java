@@ -8,7 +8,7 @@ import lombok.*;
 @NoArgsConstructor
 public class CreateOrderRequest {
     private String orderNumber;
-    private String customerName;
+    private Integer customerId;
     private Long scheduledDate;
     private String notes;
 }

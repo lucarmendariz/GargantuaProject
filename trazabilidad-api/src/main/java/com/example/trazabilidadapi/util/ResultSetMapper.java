@@ -42,6 +42,15 @@ public class ResultSetMapper {
                 .build();
     }
 
+    public static Customer getCustomerFromResultSet(ResultSet rs) throws SQLException {
+        return Customer.builder()
+                .customerId(rs.getInt("customer_id"))
+                .name(rs.getString("name"))
+                .createdAt(rs.getObject("created_at", Long.class))
+                .orderCount(rs.getInt("order_count"))
+                .build();
+    }
+
     public static ProductLot getProductLotFromResultSet(ResultSet rs) throws SQLException {
         return ProductLot.builder()
                 .lotId(rs.getInt("lot_id"))

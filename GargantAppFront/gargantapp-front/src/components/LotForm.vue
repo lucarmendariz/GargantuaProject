@@ -1,5 +1,6 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import SearchSelect from './SearchSelect.vue';
 import apiClient from '../api';
 import CameraScanner from './CameraScanner.vue';
 import { dateInputToEpoch } from '../utils/date';
@@ -9,6 +10,7 @@ import { MEASURE_UNITS } from '../utils/units';
 const props = defineProps({
   products: { type: Array, required: true }
 });
+const productOptions = computed(() => props.products.map((prod) => ({ value: prod.productId, label: `${prod.name} (${prod.sku})` })));
 
 const emit = defineEmits(['success']);
 
@@ -144,12 +146,7 @@ const handleCreateLot = async () => {
 
       <div class="form-group">
         <label for="lot-product">Asociar a Producto (*):</label>
-        <select id="lot-product" v-model="lotProductId" required>
-          <option value="" disabled selected>Selecciona un artículo comercial...</option>
-          <option v-for="prod in products" :key="prod.productId" :value="prod.productId">
-            {{ prod.name }} ({{ prod.sku }})
-          </option>
-        </select>
+        <SearchSelect id="lot-product" v-model="lotProductId" :options="productOptions" required placeholder="Busca un artículo comercial..." />
       </div>
       <div class="form-grid-inputs">
         <div class="form-group">

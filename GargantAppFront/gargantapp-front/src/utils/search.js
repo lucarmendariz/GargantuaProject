@@ -14,3 +14,8 @@ export function matchesSearch(query, fields) {
   const haystack = fields.map(normalizeText).join(' ');
   return words.every((word) => haystack.includes(word));
 }
+
+// Opciones de un desplegable ({ value, label }) cuyo texto contiene lo buscado.
+export function filterOptions(query, options) {
+  return options.filter((option) => matchesSearch(query, [option.label]));
+}

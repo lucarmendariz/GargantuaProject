@@ -6,6 +6,7 @@ import org.springframework.http.MediaType;
 
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.emptyString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -56,7 +57,9 @@ class SecurityApiTest extends IntegrationTestBase {
     @Test
     void operarioOnlyReachesItsEndpoints() throws Exception {
         String auth = bearer("OPERARIO");
-        mvc.perform(get("/api/productos/admin").header(HttpHeaders.AUTHORIZATION, auth)).andExpect(status().isForbidden());
+        // Lee el catalogo para elegir el lote en Produccion, pero no lo cambia
+        mvc.perform(get("/api/productos/admin").header(HttpHeaders.AUTHORIZATION, auth)).andExpect(status().isOk());
+        mvc.perform(delete("/api/productos/1").header(HttpHeaders.AUTHORIZATION, auth)).andExpect(status().isForbidden());
         mvc.perform(get("/api/historial/lote/1").header(HttpHeaders.AUTHORIZATION, auth)).andExpect(status().isForbidden());
         mvc.perform(get("/api/trazabilidad/lotes/LOT-2026-05-19A/status").header(HttpHeaders.AUTHORIZATION, auth))
                 .andExpect(status().isOk());

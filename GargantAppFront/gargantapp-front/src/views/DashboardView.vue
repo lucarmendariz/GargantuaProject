@@ -178,6 +178,18 @@ const dayOrders = ref([]);
 const inUseLines = ref([]);
 const dayLoading = ref(true);
 const dayError = ref('');
+
+// Los productos en uso agrupados por pedido, para que cada pedido salga una sola vez
+const inUseByOrder = computed(() => {
+  const groups = new Map();
+  for (const line of inUseLines.value) {
+    if (!groups.has(line.orderId)) {
+      groups.set(line.orderId, { orderId: line.orderId, orderNumber: line.orderNumber, customerName: line.customerName, lines: [] });
+    }
+    groups.get(line.orderId).lines.push(line);
+  }
+  return [...groups.values()].sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
+});
 const selectedDayLabel = computed(() => formatDayLong(selectedDate.value));
 let dayRequest = 0;
 
@@ -357,17 +369,22 @@ const logout = () => {
         <p class="item-meta section-help">Lotes reservados en los pedidos abiertos de este día.</p>
         <p v-if="dayLoading" class="empty-state">Cargando productos...</p>
         <p v-else-if="inUseLines.length === 0" class="empty-state">No hay productos en uso este día.</p>
-        <div v-else class="item-list">
-          <div v-for="line in inUseLines" :key="line.lineId" class="item-card">
-            <div class="item-head">
-              <span class="item-title">{{ line.productName }}</span>
-              <span v-if="isExpired(line.expirationDate)" class="status status-CADUCADO">CADUCADO</span>
+        <div v-for="group in inUseByOrder" v-else :key="group.orderId" class="order-group">
+          <h4 class="order-group-head">
+            <RouterLink :to="`/pedidos/${group.orderId}`">Pedido {{ group.orderNumber }}</RouterLink>
+            <span class="item-meta">{{ group.customerName || 'Sin cliente' }}</span>
+          </h4>
+          <div class="item-list">
+            <div v-for="line in group.lines" :key="line.lineId" class="item-card">
+              <div class="item-head">
+                <span class="item-title">{{ line.productName }}</span>
+                <span v-if="isExpired(line.expirationDate)" class="status status-CADUCADO">CADUCADO</span>
+              </div>
+              <RouterLink :to="`/lotes/${line.lotId}/trazabilidad`">Lote {{ line.lotNumber }}</RouterLink>
+              <span class="item-meta">En uso: {{ line.reservedQuantity }} {{ unitLabel(line.measureUnit) }}</span>
+              <span class="item-meta">Stock del lote: {{ line.currentStock }} · Disponible: {{ line.availableQuantity }}</span>
+              <span class="item-meta">Reservado: {{ formatEpochDateTime(line.reservedAt) }} · Caducidad: {{ formatEpochDate(line.expirationDate) }}</span>
             </div>
-            <RouterLink :to="`/lotes/${line.lotId}/trazabilidad`">Lote {{ line.lotNumber }}</RouterLink>
-            <RouterLink :to="`/pedidos/${line.orderId}`">Pedido {{ line.orderNumber }}</RouterLink>
-            <span class="item-meta">En uso: {{ line.reservedQuantity }} {{ unitLabel(line.measureUnit) }}</span>
-            <span class="item-meta">Stock del lote: {{ line.currentStock }} · Disponible: {{ line.availableQuantity }}</span>
-            <span class="item-meta">Reservado: {{ formatEpochDateTime(line.reservedAt) }} · Caducidad: {{ formatEpochDate(line.expirationDate) }}</span>
           </div>
         </div>
       </section>
@@ -439,6 +456,18 @@ const logout = () => {
 </template>
 
 <style scoped>
+.order-group + .order-group {
+  margin-top: 18px;
+}
+
+.order-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 10px;
+}
+
 .brand-title p {
   color: var(--gargantua-gold);
   font-size: 0.85rem;

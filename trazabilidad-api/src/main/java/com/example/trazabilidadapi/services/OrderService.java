@@ -2,6 +2,7 @@ package com.example.trazabilidadapi.services;
 
 import com.example.trazabilidadapi.exceptions.OrderException;
 import com.example.trazabilidadapi.models.CreateOrderRequest;
+import com.example.trazabilidadapi.models.Customer;
 import com.example.trazabilidadapi.models.CustomerOrder;
 import com.example.trazabilidadapi.models.InUseLine;
 import com.example.trazabilidadapi.models.LineConsumption;
@@ -48,6 +49,21 @@ public class OrderService {
             throw badRequest("La fecha programada es obligatoria.");
         }
         return orders.create(request, operator);
+    }
+
+    public List<Customer> customers() {
+        return orders.findCustomers();
+    }
+
+    @Transactional
+    public int createCustomer(String name) {
+        if (name == null || name.isBlank()) {
+            throw badRequest("El nombre del cliente es obligatorio.");
+        }
+        if (name.trim().length() > 150) {
+            throw badRequest("El nombre del cliente no puede pasar de 150 caracteres.");
+        }
+        return orders.createCustomer(name.trim());
     }
 
     public List<CustomerOrder> list(String status, Long from, Long to) {
